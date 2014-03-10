@@ -1,0 +1,31 @@
+input{
+    inputSize();
+
+    &[type=checkbox]{
+        position:relative;
+        width:28px;
+        height:28px;
+        cursor:pointer;
+        margin:2px;
+        vertical-align:middle;
+
+        &:before{
+            content: "";
+            position:absolute;
+            fill();
+            background: white;
+            border: solid 1px lightGray;
+        }
+
+        &:checked:after{
+            position:absolute;
+            top: -3px;
+            left: 2px;
+            content: "\02E9";
+            font-family:arial;
+            font-size:22px;
+            vendor(transform, rotateZ(45deg));
+            vendor(transform-origin, 34% 88%);
+        }
+    }
+}

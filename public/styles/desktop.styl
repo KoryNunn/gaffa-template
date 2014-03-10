@@ -1,0 +1,19 @@
+menuWidth = 220px;
+
+@media all and (min-width: 600px){
+
+    @import "./largeScreen/button";
+    @import "./largeScreen/input";
+    @import "./largeScreen/lists";
+    @import "./largeScreen/mainMenu";
+
+    .appBody{
+        padding:20px;
+        margin-left: menuWidth;
+
+        & > * > h1 {
+            padding: 20px;
+            margin: -20px -20px 20px -20px;
+        }
+    }
+}

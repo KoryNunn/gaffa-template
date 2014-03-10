@@ -1,0 +1,37 @@
+{
+  "name": "gaffa-template",
+  "version": "0.0.0",
+  "description": "",
+  "main": "server.js",
+  "dependencies": {
+    "beeline": "0.1.x",
+    "gulp": "3.x.x",
+    "gaffa": "x.x.x",
+    "flaps": "0.0.12",
+    "crel": "~1.1.0",
+    "doc-js": "~0.4.1",
+    "moment": "~2.5.0",
+    "route-tree": "0.0.x",
+    "gel-url": "0.0.2",
+    "interact-js": "~0.4.6",
+    "retort": "0.0.3",
+    "venfix": "0.0.2",
+    "statham": "0.0.5"
+  },
+  "devDependencies": {
+    "gulp-stylus": "0.0.x",
+    "gulp-uglify": "0.1.x",
+    "gulp-browserify": "0.2.x",
+    "gulp-concat": "2.1.x"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server"
+  },
+  "repository": {
+    "type": "git"
+  },
+  "author": "",
+  "license": "BSD",
+  "bugs": {}
+}

@@ -1,0 +1,34 @@
+.showableWrapper{
+    transition: all 0.3s ease-out;
+    top: headerHeight !important;
+    z-index: 3;
+    .mask{
+        position:fixed;
+        top: headerHeight;
+        left: 0;
+        width:250%;
+        bottom:0;
+        background: -webkit-linear-gradient(left, rgba(0,0,0,0.7) 0%,rgba(0,0,0,0) 100%);
+        background: -ms-linear-gradient(left, rgba(0,0,0,0.7) 0%,rgba(0,0,0,0) 100%);
+        background: -moz-linear-gradient(left, rgba(0,0,0,0.7) 0%,rgba(0,0,0,0) 100%);
+        z-index: 1;
+    }
+}
+
+.showable{
+    z-index:2;
+    background: white;
+    border-right: solid 1px lightGray;
+    .menuItem{
+        display:block;
+        width:100%;
+        padding:10px;
+        background:white;
+        border-bottom: solid 1px lightGray;
+        text-decoration:none;
+
+        &.current{
+            font-weight: 600;
+        }
+    }
+}

@@ -1,0 +1,37 @@
+vendor(prop, args){
+    -webkit-{prop}: args;
+    -moz-{prop}: args;
+    -ms-{prop}: args;
+    -o-{prop}: args;
+    {prop}: args;
+}
+
+animate(){
+    vendor(animation, arguments);
+}
+
+transition(){
+    vendor(transition, arguments);
+}
+
+transform(){
+    vendor(transform, arguments);
+}
+
+transform-origin(){
+    vendor(transform-origin, arguments);
+}
+
+fill(){
+    top:0;
+    left:0;
+    bottom:0;
+    right:0;
+}
+
+inputSize(){
+    width: inputWidth;
+    height: inputHeight;
+    margin: 2px;
+    padding:10px;
+}

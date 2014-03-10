@@ -1,0 +1,30 @@
+.field{
+    margin-bottom: 5px;
+    transition: all 0.3s ease-out;
+    vertical-align:top;
+
+    label{
+        display:inline-block;
+        width:120px;
+        color: darkGray;
+
+        & + label{
+            inputSize();
+            color: black;
+            line-height: 14px;
+        }
+    }
+
+    &.error{
+        label{
+            color: error;
+        }
+        label + *{
+            background: lighten(error,80%)
+        }
+        .errors{
+            color: error;
+            font-size: 13px;
+        }
+    }
+}
