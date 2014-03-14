@@ -1,9 +1,19 @@
 var Router = require('route-tree');
 
 module.exports = new Router({
-    '/': 'home',
-    '/signin': 'signin',
-    '/something': 'something',
-    '/majigger': 'majigger',
-    '/whatsits': 'whatsits'
+    home:{
+        _url: ['/', ''],
+        signin:{
+            _url: '/signin'
+        },
+        something: {
+            _url: '/something'
+        },
+        majigger: {
+            _url: '/majigger'
+        },
+        whatsits: {
+            _url: '/whatsits'
+        }
+    }
 });

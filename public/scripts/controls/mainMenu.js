@@ -38,9 +38,7 @@ module.exports = function(app){
 
         menu.show.binding = '[showMainMenu]';
         menu.views.content.add([
-            createNavItem({value:'Something'}, 'something'),
-            createNavItem({value:'Majigger'}, 'majigger'),
-            createNavItem({value:'Whatsits'}, 'whatsits')
+            createNavItem({value:'Something'}, 'something')
         ]);
 
         return menu;
