@@ -12,7 +12,7 @@ server.on('request', function(request, response){
 
 server.listen(port, function(error){
     if(error){
-        logger.error(error);
+        console.error(error);
         return process.exit(-1);
     }
 
