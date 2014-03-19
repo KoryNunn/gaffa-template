@@ -1,5 +1,5 @@
 function strap(app){
-    app.gaffa.navigate(window.location, 'appBody.content');
+    app.gaffa.navigate(window.location.href, 'appBody.content');
 }
 
 module.exports = strap;

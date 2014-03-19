@@ -37,7 +37,7 @@ Showable.prototype.render = function(){
         view.show.set(flap.state === 'open');
     });
     flap.on('move', function(){
-        mask.style[venfix('transform')] = 'translate3d(' + -(100 - this.percentOpen()) + '%,0,0)';
+        mask.style.opacity = this.percentOpen() / 100;
     });
     flap.on('ready', function(){
         setTimeout(resize,300);

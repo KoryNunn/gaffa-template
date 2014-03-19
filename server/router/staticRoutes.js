@@ -1,8 +1,8 @@
 var beeline = require('beeline'),
-    publicPath = './public',
-    path = require('path');
+    publicPath = './public';
 
 module.exports = function(routes){
+    routes['/'] = beeline.staticFile(publicPath + '/index.html', 'text/html', 0),
     routes['/`path...`'] = beeline.staticDir(publicPath, {
         '.txt': 'text/plain',
         '.html': 'text/html',
@@ -14,5 +14,5 @@ module.exports = function(routes){
         '.ico': 'image/x-icon',
         '.js': 'application/javascript',
         '.json': 'application/json'
-    });
+    }, 0);
 };

@@ -8,10 +8,10 @@
         left: 0;
         width:250%;
         bottom:0;
-        background: -webkit-linear-gradient(left, rgba(0,0,0,0.7) 0%,rgba(0,0,0,0) 100%);
-        background: -ms-linear-gradient(left, rgba(0,0,0,0.7) 0%,rgba(0,0,0,0) 100%);
-        background: -moz-linear-gradient(left, rgba(0,0,0,0.7) 0%,rgba(0,0,0,0) 100%);
+        background: rgba(0,0,0,0.7);
+        transform: translateZ(0);
         z-index: 1;
+        pointer-events:none;
     }
 }
 
@@ -28,7 +28,7 @@
         text-decoration:none;
 
         &.current{
-            font-weight: 600;
+            font-weight: bold;
         }
     }
 }

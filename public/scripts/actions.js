@@ -1,7 +1,6 @@
 module.exports = {
     navigate : require('gaffa/actions/navigate'),
     set : require('gaffa/actions/set'),
-    ajax : require('gaffa/actions/ajax'),
     push : require('gaffa/actions/push'),
     concat : require('gaffa/actions/concat'),
     remove : require('gaffa/actions/remove'),
@@ -15,5 +14,9 @@ module.exports = {
 
     // custom
 
-    back: require('./gaffaExtensions/actions/back')
+    back: require('./gaffaExtensions/actions/back'),
+
+    // npm'd
+
+    ajax : require('gaffa-ajax')
 };

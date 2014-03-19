@@ -91,11 +91,7 @@ module.exports = function(gaffa, router){
         }
 
         gaffa.ajax({
-            headers:{
-                'x-gaffa': 'navigate'
-            },
-            cache: navigator.appName !== 'Microsoft Internet Explorer',
-            url: '/' + router.find(url.parse(url.resolve(window.location.href, href)).pathname) + '.json',
+            url: 'build/pages/' + router.find(url.resolve(window.location.hostname, href)) + '.json',
             type: "get",
             data: data, // This is to avoid the cached HTML version of a page if you are bootstrapping.
             dataType: "json",

@@ -1,6 +1,4 @@
 module.exports = function(app){
-    var moment = require('moment');
-
     require('gel-url')(app.gaffa.gedi.gel);
 
     app.gaffa.gedi.gel.scope.router = {
