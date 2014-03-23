@@ -1,6 +1,6 @@
 module.exports = {
-    pageLoad : require('gaffa/behaviours/pageLoad'),
-    modelChange : require('gaffa/behaviours/modelChange'),
-    navigate : require('gaffa/behaviours/navigate'),
-    notification : require('gaffa/behaviours/notification')
+    pageLoad : require('gaffa-page-load'),
+    modelChange : require('gaffa-model-change'),
+    navigate : require('gaffa-navigate'),
+    notification : require('gaffa-notification')
 };

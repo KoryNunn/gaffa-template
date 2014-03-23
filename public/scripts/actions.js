@@ -1,16 +1,16 @@
 module.exports = {
-    navigate : require('gaffa/actions/navigate'),
-    set : require('gaffa/actions/set'),
-    push : require('gaffa/actions/push'),
-    concat : require('gaffa/actions/concat'),
-    remove : require('gaffa/actions/remove'),
-    generic : require('gaffa/actions/generic'),
-    forEach : require('gaffa/actions/forEach'),
-    toggle : require('gaffa/actions/toggle'),
-    delay : require('gaffa/actions/delay'),
-    conditional : require('gaffa/actions/conditional'),
-    'switch' : require('gaffa/actions/switch'),
-    clean : require('gaffa/actions/clean'),
+    navigate : require('gaffa-navigate'),
+    set : require('gaffa-set'),
+    push : require('gaffa-push'),
+    concat : require('gaffa-concat'),
+    remove : require('gaffa-remove'),
+    generic : require('gaffa-generic'),
+    forEach : require('gaffa-for-each'),
+    toggle : require('gaffa-toggle'),
+    delay : require('gaffa-delay'),
+    conditional : require('gaffa-conditional'),
+    'switch' : require('gaffa-switch'),
+    clean : require('gaffa-clean'),
 
     // custom
 

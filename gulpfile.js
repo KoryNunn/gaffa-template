@@ -21,7 +21,7 @@ gulp.task('build', function() {
         }))
 
         // Comment this line out for development
-        .pipe(minify())
+        //.pipe(minify())
 
         .pipe(concat('../build/app.browser.js'))
         .pipe(gulp.dest('./public/scripts'))
