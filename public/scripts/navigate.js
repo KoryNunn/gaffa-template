@@ -85,7 +85,7 @@ module.exports = function(gaffa, router){
         gaffa.notifications.notify("navigation.begin");
 
         if(gaffa.cacheNavigates !== false && pageCache[href]){
-            success(statham.revive(pageCache[href]));
+            success(pageCache[href]);
             complete();
             return;
         }
@@ -99,8 +99,7 @@ module.exports = function(gaffa, router){
             error: error,
             complete: complete
         });
-    };
+    }
 
     return navigate;
-
 };
