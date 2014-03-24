@@ -15,7 +15,6 @@ Actions
 
     "gaffa-generic":"^1.0.0"
     "gaffa-for-each":"^1.0.0"
-    "gaffa-toggle":"^1.0.0"
     "gaffa-delay":"^1.0.0"
     "gaffa-switch":"^1.0.0"
     "gaffa-clean":"^1.0.0"

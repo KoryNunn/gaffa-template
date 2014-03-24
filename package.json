@@ -33,6 +33,7 @@
     "gaffa-push":"^1.0.0",
     "gaffa-concat":"^1.0.0",
     "gaffa-remove":"^1.0.0",
+    "gaffa-toggle":"^1.0.0",
     "gaffa-conditional":"^1.0.0",
 
     "gaffa-page-load":"^1.0.0",
