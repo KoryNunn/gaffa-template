@@ -859,6 +859,7 @@ Flap.prototype.enable = function(){
         this.element.style.right = '0px';
         this.content.style.left = '100%';
     }
+    this.hide();
     this.update();
 };
 Flap.prototype.disable = function(){
@@ -869,7 +870,6 @@ Flap.prototype.disable = function(){
     this.element.style.bottom = null;
     this.element.style.width = null;
     this.element.style[venfix('pointerEvents')] = null;
-    this.element.style.display = null;
 
     this.content.style[venfix('boxSizing')] = null;
     this.content.style[venfix('transform')] = null;
@@ -888,6 +888,7 @@ Flap.prototype.disable = function(){
 
     cancelAnimationFrame(this.settleFrame);
 
+    this.show();
     this.update();
 };
 Flap.prototype._isValidInteraction = function(interaction){
@@ -980,7 +981,7 @@ Flap.prototype._setOpen = function(){
     if(this.constructor.openFlap !== this){
         var flap = this;
         this.constructor.openFlap = this;
-        this.element.style['display'] = null;
+        this.show();
         this.state = 'open';
         this.emit('open');
 
@@ -991,11 +992,21 @@ Flap.prototype._setOpen = function(){
         },500);
     }
 };
+Flap.prototype.hide = function(){
+    if(this.element.style.visibility !== 'hidden'){
+        this.element.style.visibility = 'hidden';
+    }
+};
+Flap.prototype.show = function(){
+    if(this.element.style.visibility !== ''){
+        this.element.style.visibility = '';
+    }
+};
 Flap.prototype._setClosed = function(){
     this.constructor.openFlap = null;
     clearTimeout(this._pointerEventTimeout);
     this.element.style[venfix('pointerEvents')] = 'none';
-    this.element.style['display'] = 'none';
+    this.hide();
     this.state = 'closed';
     this.emit('close');
 };
@@ -1077,7 +1088,7 @@ Flap.prototype.close = function(){
     this.settle('close');
 };
 module.exports = Flap;
-},{"crel":1,"doc-js":3,"events":60,"interact-js":8,"laidout":9,"venfix":72}],8:[function(require,module,exports){
+},{"crel":1,"doc-js":3,"events":50,"interact-js":8,"laidout":9,"venfix":62}],8:[function(require,module,exports){
 var interactions = [],
     minMoveDistance = 5,
     interact,
@@ -1615,7 +1626,7 @@ Ajax.prototype.headers = new Gaffa.Property();
 Ajax.prototype.url = new Gaffa.Property();
 
 module.exports = Ajax;
-},{"gaffa":41}],11:[function(require,module,exports){
+},{"gaffa":31}],11:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -1680,7 +1691,7 @@ Anchor.prototype.href = new Gaffa.Property(function(viewModel, value){
 });
 
 module.exports = Anchor;
-},{"crel":1,"gaffa":41}],12:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],12:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -1724,77 +1735,7 @@ Button.prototype.disabled = new Gaffa.Property(function(viewModel, value){
 });
 
 module.exports = Button;
-},{"crel":1,"gaffa":41}],13:[function(require,module,exports){
-"use strict";
-
-var Gaffa = require('gaffa'),
-    crel = require('crel');
-
-function Checkbox(){}
-Checkbox = Gaffa.createSpec(Checkbox, Gaffa.ContainerView);
-Checkbox.prototype.type = 'checkbox';
-
-Checkbox.prototype.render = function(){
-    var view = this,
-        label,
-        checkbox,
-        renderedElement = crel('span',
-            label = crel('label'),
-            checkbox = crel('input', {'type': 'checkbox'})
-        );
-
-    this.checkboxInput = checkbox;
-    this.checkboxLabel = label;
-
-    checkbox.addEventListener(this.updateEventName || "change", function(event){
-        view.checked.set(this.checked);
-    });
-    label.addEventListener('click', function(){
-        checkbox.click();
-    });
-    renderedElement.appendChild(checkbox);
-    renderedElement.appendChild(label);
-
-    this.views.content.element = label;
-
-    this.renderedElement = renderedElement;
-
-};
-
-Checkbox.prototype.checked = new Gaffa.Property(function(view, value) {
-    view.checkboxInput.checked = value;
-});
-
-Checkbox.prototype.text = new Gaffa.Property(function(view, value){
-    view.checkboxLabel.textContent = (value && typeof value === 'string') ? value : null;
-});
-
-Checkbox.prototype.showLabel = new Gaffa.Property(function(view, value){
-    view.checkboxLabel.style.display = value === false ? 'none' : null;
-});
-
-module.exports = Checkbox;
-},{"crel":1,"gaffa":41}],14:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    actionType = "clean";
-
-function Clean(){}
-Clean = Gaffa.createSpec(Clean, Gaffa.Action);
-Clean.prototype.type = actionType;
-Clean.prototype.trigger = function(){
-
-    this.gaffa.model.setDirtyState(this.target.binding, false, this);
-
-    // Trigger events if needed.
-    if(this.triggerEvents.value){
-        this.gaffa.gedi.trigger(this.gaffa.gedi.paths.resolve(this.getPath(), this.target.binding));
-    }
-};
-Clean.prototype.target = new Gaffa.Property();
-Clean.prototype.triggerEvents = new Gaffa.Property();
-
-module.exports = Clean;
-},{"gaffa":41}],15:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],13:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "concat";
 
@@ -1828,7 +1769,7 @@ Concat.prototype.clone = new Gaffa.Property();
 
 
 module.exports = Concat;
-},{"gaffa":41}],16:[function(require,module,exports){
+},{"gaffa":31}],14:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "conditional";
 
@@ -1849,7 +1790,7 @@ Conditional.prototype.trigger = function(parent, scope, event) {
 
 
 module.exports =  Conditional;
-},{"gaffa":41}],17:[function(require,module,exports){
+},{"gaffa":31}],15:[function(require,module,exports){
 var Gaffa = require('gaffa');
 
 function Container(){}
@@ -1863,72 +1804,7 @@ Container.prototype.render = function(){
 };
 
 module.exports = Container;
-},{"gaffa":41}],18:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    actionType = "delay";
-
-function Delay(){}
-Delay = Gaffa.createSpec(Delay, Gaffa.Action);
-Delay.prototype.type = actionType;
-Delay.prototype.delay = new Gaffa.Property();
-
-Delay.prototype.trigger = function(parent, scope, event) {
-
-    var action = this;
-
-    setTimeout(function(){
-        action.triggerActions('trigger', scope, event);
-    }, this.delay.value);
-};
-
-module.exports =  Delay;
-},{"gaffa":41}],19:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    actionType = "forEach";
-
-function ForEach(){}
-ForEach = Gaffa.createSpec(ForEach, Gaffa.Action);
-ForEach.prototype.type = actionType;
-ForEach.prototype.target = new Gaffa.Property({
-    trackKeys:true
-});
-
-ForEach.prototype.trigger = function(parent, scope, event) {
-
-    var items = this.target.value,
-        keys = this.target._sourcePathInfo && this.target._sourcePathInfo.subPaths;
-
-    if(!items){
-        return;
-    }
-
-    if(!scope){
-        scope = {};
-    }
-
-    for(var i = 0; i < items.length; i++){
-        var psudoParent = new EachPsudoParent();
-        psudoParent.gaffa = this.gaffa;
-        psudoParent.parent = this;
-        psudoParent.sourcePath = keys ? keys[i] : '' + i;
-
-        var actions = JSON.parse(JSON.stringify(this.actions['forEach']));
-
-        psudoParent.actions.all = actions;
-        psudoParent = this.gaffa.initialiseViewItem(psudoParent, psudoParent.gaffa, psudoParent.actions.constructors);
-
-        scope.item = items[i];
-
-        psudoParent.triggerActions('all', scope, event);
-    }
-};
-
-function EachPsudoParent(){}
-EachPsudoParent = Gaffa.createSpec(EachPsudoParent, Gaffa.Action);
-EachPsudoParent.prototype.type = 'eachPsudoParent';
-
-module.exports =  ForEach;
-},{"gaffa":41}],20:[function(require,module,exports){
+},{"gaffa":31}],16:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     viewType = "form",
     crel = require('crel'),
@@ -1963,114 +1839,7 @@ Form.prototype.render = function(){
 };
 
 module.exports = Form;
-},{"crel":1,"gaffa":41}],21:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    actionType = 'generic';
-
-function Generic(){}
-Generic = Gaffa.createSpec(Generic, Gaffa.Action);
-Generic.prototype.type = actionType;
-Generic.prototype.trigger = function(parent, scope, event){
-
-    this.gaffa.model.get(this.expression, this, scope);
-};
-
-module.exports = Generic;
-},{"gaffa":41}],22:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    crel = require('crel'),
-    viewType = "group";
-
-function Group(){
-    this.views.groups = new Gaffa.ViewContainer(this.views.groups);
-    this.views.empty = new Gaffa.ViewContainer(this.views.empty);
-}
-Group = Gaffa.createSpec(Group, Gaffa.ContainerView);
-Group.prototype.type = viewType;
-Group.prototype.render = function(){
-
-    var renderedElement = crel('div');
-
-    this.views.groups.element = renderedElement;
-    this.views.empty.element = renderedElement;
-
-    this.renderedElement = renderedElement;
-
-}
-
-function createNewView(property, templateKey, addedItem){
-    if(!property.templateCache){
-        property.templateCache= {};
-    }
-    var view = JSON.parse(
-        property.templateCache[templateKey] ||
-        (property.templateCache[templateKey] = JSON.stringify(property[templateKey]))
-    );
-
-    for(var key in addedItem){
-        view[key] = addedItem[key];
-    }
-
-    return property.gaffa.initialiseViewItem(view, property.gaffa, property.gaffa.views.constructors);
-}
-
-Group.prototype.groups = new Gaffa.Property({
-    update: Gaffa.propertyUpdaters.group(
-        "groups",
-        //increment
-        function(viewModel, groups, addedItem){
-            var listViews = viewModel.views.groups,
-                property = viewModel.groups,
-                groupContainer = createNewView(property, 'groupTemplate'),
-                expression,
-                newHeader,
-                newList;
-
-            for(var key in addedItem){
-                groupContainer[key] = addedItem[key];
-            }
-
-            if(property.listTemplate){
-                expression = '({items ' + property.listTemplate.list.binding + '}(filter [] {item (= (' + property.expression + ' item) "' + addedItem.group + '")}))';
-
-                newList = createNewView(property, 'listTemplate', addedItem);
-
-                newList.list.binding = expression;
-
-                groupContainer.views.content.add(newList);
-            }
-
-            listViews.add(groupContainer);
-        },
-        //decrement
-        function(viewModel, groups, removedItem){
-            removedItem.remove();
-        },
-        //empty
-        function(viewModel, insert){
-            var emptyViews = viewModel.views.empty,
-                property = viewModel.groups;
-
-            if(!property.emptyTemplate){
-                return;
-            }
-
-            if(insert){
-                if(!emptyViews.length){
-                    emptyViews.add(createNewView(property, 'emptyTemplate'));
-                }
-            }else{
-                while(emptyViews.length){
-                    emptyViews[0].remove();
-                }
-            }
-        }
-    ),
-    trackKeys: true
-});
-
-module.exports = Group;
-},{"crel":1,"gaffa":41}],23:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],17:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -2100,7 +1869,7 @@ Heading.prototype.text = new Gaffa.Property(function(view, value){
 });
 
 module.exports = Heading;
-},{"crel":1,"gaffa":41}],24:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],18:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -2125,7 +1894,7 @@ Html.prototype.html = new Gaffa.Property(function(viewModel, value){
 });
 
 module.exports = Html;
-},{"crel":1,"gaffa":41}],25:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],19:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     viewType = "image",
     crel = require('crel'),
@@ -2168,7 +1937,7 @@ Image.prototype.image = new Gaffa.Property(function (viewModel, value) {
 });
 
 module.exports = Image;
-},{"crel":1,"gaffa":41}],26:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],20:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -2206,7 +1975,7 @@ Label.prototype.labelFor = new Gaffa.Property(function (viewModel, value) {
 });
 
 module.exports = Label;
-},{"crel":1,"gaffa":41}],27:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],21:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     crel = require('crel'),
     TemplaterProperty = require('gaffa/templaterProperty'),
@@ -2235,7 +2004,7 @@ List.prototype.list = new TemplaterProperty({
 });
 
 module.exports = List;
-},{"crel":1,"gaffa":41,"gaffa/templaterProperty":58}],28:[function(require,module,exports){
+},{"crel":1,"gaffa":31,"gaffa/templaterProperty":48}],22:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     behaviourType = 'modelChange';
 
@@ -2284,7 +2053,7 @@ ModelChangeBehaviour.prototype.watch = new Gaffa.Property({
 });
 
 module.exports = ModelChangeBehaviour;
-},{"gaffa":41}],29:[function(require,module,exports){
+},{"gaffa":31}],23:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "navigate";
 
@@ -2306,28 +2075,7 @@ Navigate.prototype.trigger = function() {
 }
 
 module.exports = Navigate;
-},{"gaffa":41}],30:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    behaviourType = 'notification';
-
-function Notification(){}
-Notification = Gaffa.createSpec(Notification, Gaffa.Behaviour);
-Notification.prototype.type = behaviourType;
-Notification.prototype.notification = new Gaffa.Property();
-Notification.prototype.bind = function(){
-
-    var behaviour = this;
-
-    this.gaffa.notifications.add(
-        this.notification.value,
-        function(){
-            behaviour.triggerActions('notification');
-        }
-    );
-};
-
-module.exports = Notification;
-},{"gaffa":41}],31:[function(require,module,exports){
+},{"gaffa":31}],24:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     behaviourType = 'pageLoad';
 
@@ -2340,7 +2088,7 @@ PageLoadBehaviour.prototype.bind = function(){
 };
 
 module.exports = PageLoadBehaviour;
-},{"gaffa":41}],32:[function(require,module,exports){
+},{"gaffa":31}],25:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "push";
 
@@ -2375,7 +2123,7 @@ Push.prototype.clone = new Gaffa.Property({
 
 
 module.exports = Push;
-},{"gaffa":41}],33:[function(require,module,exports){
+},{"gaffa":31}],26:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "remove";
 
@@ -2392,7 +2140,7 @@ Remove.prototype.cleans = new Gaffa.Property();
 
 
 module.exports = Remove;
-},{"gaffa":41}],34:[function(require,module,exports){
+},{"gaffa":31}],27:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "set";
 
@@ -2413,77 +2161,7 @@ Set.prototype.clone = new Gaffa.Property();
 Set.prototype.cleans = new Gaffa.Property();
 
 module.exports = Set;
-},{"gaffa":41}],35:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    crel = require('crel'),
-    viewType = "switchContainer",
-	cachedElement;
-
-function SwitchContainer(){}
-SwitchContainer = Gaffa.createSpec(SwitchContainer, Gaffa.ContainerView);
-SwitchContainer.prototype.type = viewType;
-
-SwitchContainer.prototype.render = function(){
-
-    var renderedElement = crel(this.tagName || 'div');
-
-    this.views.content.element = renderedElement;
-    this.renderedElement = renderedElement;
-
-};
-
-function createNewView(property, template, templateKey){
-    if(!property.templateCache){
-        property.templateCache= {};
-    }
-    var view = JSON.parse(
-        property.templateCache[templateKey] ||
-        (property.templateCache[templateKey] = JSON.stringify(template))
-    );
-
-    return property.gaffa.initialiseViewItem(view, property.gaffa, property.gaffa.views.constructors);
-}
-
-SwitchContainer.prototype.content = new Gaffa.Property(function(viewModel, value){
-    var template,
-        content = viewModel.views.content;
-
-    // remove old view
-    while(content.length){
-        content[0].remove();
-    }
-
-    template = this.templates && this.templates[value] || this.emptyTemplate;
-
-    if(!template){
-        if(this.emptyTemplate){
-            content.add(createNewView(this, this.emptyTemplate, 'emptyTemplate'));
-        }
-        return;
-    }
-
-    content.add(createNewView(this, template, 'templates-' + value));
-});
-
-module.exports = SwitchContainer;
-},{"crel":1,"gaffa":41}],36:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    actionType = "switch";
-
-function Switch(){}
-Switch = Gaffa.createSpec(Switch, Gaffa.Action);
-Switch.prototype.type = actionType;
-Switch.prototype['switch'] = new Gaffa.Property();
-
-Switch.prototype.trigger = function(parent, scope, event) {
-
-    if(this['switch'].value != null){
-        this.triggerActions(this['switch'].value, scope, event);
-    }
-};
-
-module.exports = Switch;
-},{"gaffa":41}],37:[function(require,module,exports){
+},{"gaffa":31}],28:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     crel = require('crel'),
     viewType = "text";
@@ -2510,44 +2188,7 @@ Text.prototype.enabled = undefined;
 Text.prototype.classes = undefined;
 
 module.exports = Text;
-},{"crel":1,"gaffa":41}],38:[function(require,module,exports){
-var Gaffa = require('gaffa'),
-    crel = require('crel'),
-    doc = require('doc-js'),
-    viewType = "textarea",
-	cachedElement;
-
-function Textarea(){}
-Textarea = Gaffa.createSpec(Textarea, Gaffa.View);
-Textarea.prototype.type = viewType;
-
-Textarea.prototype.render = function(){
-    var view = this,
-        renderedElement = crel('textarea');
-
-    doc.on(this.updateEventName || "change", renderedElement, function(){
-        view.value.set(renderedElement.value);
-    });
-
-    this.renderedElement = renderedElement;
-
-};
-
-Textarea.prototype.value = new Gaffa.Property(function(view, value){
-    view.renderedElement.value = value || '';
-});
-
-Textarea.prototype.placeholder = new Gaffa.Property(function(view, value){
-    view.renderedElement[value ? 'setAttribute' : 'removeAttribute']('placeholder', value);
-
-});
-
-Textarea.prototype.disabled = new Gaffa.Property(function(view, value){
-    view.renderedElement[value ? 'setAttribute' : 'removeAttribute']('disabled', value);
-});
-
-module.exports = Textarea;
-},{"crel":1,"doc-js":3,"gaffa":41}],39:[function(require,module,exports){
+},{"crel":1,"gaffa":31}],29:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     crel = require('crel'),
     viewType = "textbox",
@@ -2661,7 +2302,7 @@ Textbox.prototype.disabled = new Gaffa.Property(updateDisabled);
 Textbox.prototype.required = new Gaffa.Property(updateRequired);
 
 module.exports = Textbox;
-},{"crel":1,"doc-js":3,"gaffa":41}],40:[function(require,module,exports){
+},{"crel":1,"doc-js":3,"gaffa":31}],30:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "toggle";
 
@@ -2675,7 +2316,7 @@ Toggle.prototype.trigger = function(){
 Toggle.prototype.target = new Gaffa.Property();
 
 module.exports = Toggle;
-},{"gaffa":41}],41:[function(require,module,exports){
+},{"gaffa":31}],31:[function(require,module,exports){
 //Copyright (C) 2012 Kory Nunn, Matt Ginty & Maurice Butler
 
 //Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -4787,7 +4428,7 @@ module.exports = Gaffa;
 
 ///[license.md]
 
-},{"./raf.js":57,"crel":42,"deep-equal":43,"doc-js":44,"events":60,"fasteach":45,"gedi":47,"spec-js":56}],42:[function(require,module,exports){
+},{"./raf.js":47,"crel":32,"deep-equal":33,"doc-js":34,"events":50,"fasteach":35,"gedi":37,"spec-js":46}],32:[function(require,module,exports){
 //Copyright (C) 2012 Kory Nunn
 
 //Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -4909,7 +4550,7 @@ module.exports = Gaffa;
     return crel;
 }));
 
-},{}],43:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 var pSlice = Array.prototype.slice;
 var Object_keys = typeof Object.keys === 'function'
     ? Object.keys
@@ -4995,7 +4636,7 @@ function objEquiv(a, b) {
   return true;
 }
 
-},{}],44:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 (function (root, factory) {
     if (typeof exports === 'object') {
         module.exports = factory();
@@ -5190,14 +4831,14 @@ function objEquiv(a, b) {
 
     return doc;
 }));
-},{}],45:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 function fastEach(items, callback) {
     for (var i = 0; i < items.length && !callback(items[i], i, items);i++) {}
     return items;
 }
 
 module.exports = fastEach;
-},{}],46:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 var WM = typeof WM !== 'undefined' ? WeakMap : require('weak-map'),
     paths = require('gedi-paths'),
     pathConstants = paths.constants
@@ -5599,7 +5240,7 @@ module.exports = function(modelGet, gel, PathToken){
         removeModelReference: removeModelReference
     };
 };
-},{"./modelOperations":48,"gedi-paths":50,"weak-map":54}],47:[function(require,module,exports){
+},{"./modelOperations":38,"gedi-paths":40,"weak-map":44}],37:[function(require,module,exports){
 //Copyright (C) 2012 Kory Nunn
 
 //Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -6214,7 +5855,7 @@ function newGedi(model) {
 }
 
 module.exports = gediConstructor;
-},{"./events":46,"./modelOperations":48,"./pathToken":55,"gedi-paths":50,"gel-js":51,"spec-js":56}],48:[function(require,module,exports){
+},{"./events":36,"./modelOperations":38,"./pathToken":45,"gedi-paths":40,"gel-js":41,"spec-js":46}],38:[function(require,module,exports){
 var paths = require('gedi-paths'),
     memoiseCache = {};
 
@@ -6344,7 +5985,7 @@ module.exports = {
     get: get,
     set: set
 };
-},{"gedi-paths":50}],49:[function(require,module,exports){
+},{"gedi-paths":40}],39:[function(require,module,exports){
 module.exports = function detectPath(substring){
     if (substring.charAt(0) === '[') {
         var index = 1;
@@ -6363,7 +6004,7 @@ module.exports = function detectPath(substring){
         } while (index < substring.length);
     }
 };
-},{}],50:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 var detectPath = require('./detectPath');
 
 var pathSeparator = "/",
@@ -6631,7 +6272,7 @@ module.exports = {
         wildcard: pathWildcard
     }
 };
-},{"./detectPath":49}],51:[function(require,module,exports){
+},{"./detectPath":39}],41:[function(require,module,exports){
 var Lang = require('lang-js'),
     paths = require('gedi-paths'),
     createNestingParser = Lang.createNestingParser,
@@ -7728,7 +7369,7 @@ Gel = function(){
 Gel.Token = Token;
 Gel.Scope = Scope;
 module.exports = Gel;
-},{"gedi-paths":50,"lang-js":52,"spec-js":56}],52:[function(require,module,exports){
+},{"gedi-paths":40,"lang-js":42,"spec-js":46}],42:[function(require,module,exports){
 var Token = require('./src/token');
 
 function fastEach(items, callback) {
@@ -8075,7 +7716,7 @@ Lang.Scope = Scope;
 Lang.Token = Token;
 
 module.exports = Lang;
-},{"./src/token":53}],53:[function(require,module,exports){
+},{"./src/token":43}],43:[function(require,module,exports){
 function Token(substring, length){
     this.original = substring;
     this.length = length;
@@ -8087,7 +7728,7 @@ Token.prototype.valueOf = function(){
 }
 
 module.exports = Token;
-},{}],54:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 // Copyright (C) 2011 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -8765,7 +8406,7 @@ module.exports = Token;
   }
 })();
 
-},{}],55:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 var Lang = require('lang-js'),
     Token = Lang.Token,
     paths = require('gedi-paths'),
@@ -8795,7 +8436,7 @@ module.exports = function(get, model){
 
     return PathToken;
 }
-},{"gedi-paths":50,"gedi-paths/detectPath":49,"lang-js":52,"spec-js":56}],56:[function(require,module,exports){
+},{"gedi-paths":40,"gedi-paths/detectPath":39,"lang-js":42,"spec-js":46}],46:[function(require,module,exports){
 Object.create = Object.create || function (o) {
     if (arguments.length > 1) {
         throw new Error('Object.create implementation only accepts the first parameter.');
@@ -8833,7 +8474,7 @@ function createSpec(child, parent){
 }
 
 module.exports = createSpec;
-},{}],57:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 /*
  * raf.js
  * https://github.com/ngryman/raf.js
@@ -8886,7 +8527,7 @@ module.exports = {
     requestAnimationFrame: requestAnimationFrame,
     cancelAnimationFrame: cancelAnimationFrame
 };
-},{}],58:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     createSpec = require('spec-js');
 
@@ -9021,7 +8662,7 @@ TemplaterProperty.prototype.update =function (viewModel, value) {
 };
 
 module.exports = TemplaterProperty;
-},{"gaffa":41,"spec-js":56}],59:[function(require,module,exports){
+},{"gaffa":31,"spec-js":46}],49:[function(require,module,exports){
 module.exports = function(gel){
     gel.scope.url = function(scope, args){
         return window.location.toString();
@@ -9048,7 +8689,7 @@ module.exports = function(gel){
         return window.location.hash.split('#').pop();
     };
 };
-},{}],60:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -9350,7 +8991,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],61:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};/*! http://mths.be/punycode v1.2.4 by @mathias */
 ;(function(root) {
 
@@ -9859,7 +9500,7 @@ var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? 
 
 }(this));
 
-},{}],62:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -9945,7 +9586,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],63:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -10032,13 +9673,13 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],64:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":62,"./encode":63}],65:[function(require,module,exports){
+},{"./decode":52,"./encode":53}],55:[function(require,module,exports){
 /*jshint strict:true node:true es5:true onevar:true laxcomma:true laxbreak:true eqeqeq:true immed:true latedef:true*/
 (function () {
   "use strict";
@@ -10671,7 +10312,7 @@ function parseHost(host) {
 
 }());
 
-},{"punycode":61,"querystring":64}],66:[function(require,module,exports){
+},{"punycode":51,"querystring":54}],56:[function(require,module,exports){
 var arrayProto = [],
     absolutePath = /^.+?\:\/\//g,
     formatRegex = /\{[0-9]*?\}/g;
@@ -10792,6 +10433,10 @@ Router.prototype.isRoot = function(name){
 };
 
 Router.prototype.values = function(path){
+    if(path == null){
+        path = window.location.href;
+    }
+
     var routeTemplate = this.get(this.find(path)),
         results;
 
@@ -10824,7 +10469,7 @@ Router.prototype.drill = function(path, route){
 Router.prototype.resolve = resolve;
 
 module.exports = Router;
-},{}],67:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 function escapeHex(hex){
     return String.fromCharCode(hex);
 }
@@ -10837,7 +10482,7 @@ function createKey(number){
 }
 
 module.exports = createKey;
-},{}],68:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 var revive = require('./revive');
 
 function parse(json, reviver){
@@ -10845,13 +10490,14 @@ function parse(json, reviver){
 }
 
 module.exports = parse;
-},{"./revive":69}],69:[function(require,module,exports){
+},{"./revive":59}],59:[function(require,module,exports){
 var createKey = require('./createKey'),
     keyKey = createKey(-1);
 
 function revive(input){
     var objects = {},
-        scannedObjects = [];
+        scannedInputObjects = [];
+        scannedOutputObjects = [];
 
     function scan(input){
         var output = input;
@@ -10860,7 +10506,12 @@ function revive(input){
             return output;
         }
 
-        output = input instanceof Array ? [] : {};
+        if(scannedOutputObjects.indexOf(input) < 0){
+            output = input instanceof Array ? [] : {};
+            scannedOutputObjects.push(output);
+            scannedInputObjects.push(input);
+        }
+
 
         if(input[keyKey]){
             objects[input[keyKey]] = output;
@@ -10874,11 +10525,18 @@ function revive(input){
             }
 
             if(value != null && typeof value === 'object'){
-                if(scannedObjects.indexOf(value)<0){
-                    scannedObjects.push(value);
+                var objectIndex = scannedInputObjects.indexOf(value);
+                if(objectIndex<0){
                     output[key] = scan(value);
+                }else{
+                    output[key] = scannedOutputObjects[objectIndex];
                 }
-            }else if(typeof value === 'string' && value.length === 1 && value.charCodeAt(0) > keyKey.charCodeAt(0)){
+            }else if(
+                typeof value === 'string' &&
+                value.length === 1 &&
+                value.charCodeAt(0) > keyKey.charCodeAt(0) &&
+                value in objects
+            ){
                 output[key] = objects[value];
             }else{
                 output[key] = input[key];
@@ -10891,13 +10549,13 @@ function revive(input){
 }
 
 module.exports = revive;
-},{"./createKey":67}],70:[function(require,module,exports){
+},{"./createKey":57}],60:[function(require,module,exports){
 module.exports = {
     stringify: require('./stringify'),
     parse: require('./parse'),
     revive: require('./revive')
 };
-},{"./parse":68,"./revive":69,"./stringify":71}],71:[function(require,module,exports){
+},{"./parse":58,"./revive":59,"./stringify":61}],61:[function(require,module,exports){
 var createKey = require('./createKey'),
     keyKey = createKey(-1);
 
@@ -10953,7 +10611,7 @@ function stringify(input, replacer, spacer){
 }
 
 module.exports = stringify;
-},{"./createKey":67}],72:[function(require,module,exports){
+},{"./createKey":57}],62:[function(require,module,exports){
 var cache = {};
 
 function venfix(property, target){
@@ -10991,30 +10649,21 @@ function venfix(property, target){
 venfix.prefixes = ['webkit', 'moz', 'ms', 'o'];
 
 module.exports = venfix;
-},{}],73:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 module.exports = {
     navigate : require('gaffa-navigate'),
     set : require('gaffa-set'),
     push : require('gaffa-push'),
     concat : require('gaffa-concat'),
     remove : require('gaffa-remove'),
-    generic : require('gaffa-generic'),
-    forEach : require('gaffa-for-each'),
     toggle : require('gaffa-toggle'),
-    delay : require('gaffa-delay'),
     conditional : require('gaffa-conditional'),
-    'switch' : require('gaffa-switch'),
-    clean : require('gaffa-clean'),
+    ajax : require('gaffa-ajax'),
 
     // custom
-
-    back: require('./gaffaExtensions/actions/back'),
-
-    // npm'd
-
-    ajax : require('gaffa-ajax')
+    back: require('./gaffaExtensions/actions/back')
 };
-},{"./gaffaExtensions/actions/back":83,"gaffa-ajax":10,"gaffa-clean":14,"gaffa-concat":15,"gaffa-conditional":16,"gaffa-delay":18,"gaffa-for-each":19,"gaffa-generic":21,"gaffa-navigate":29,"gaffa-push":32,"gaffa-remove":33,"gaffa-set":34,"gaffa-switch":36,"gaffa-toggle":40}],74:[function(require,module,exports){
+},{"./gaffaExtensions/actions/back":73,"gaffa-ajax":10,"gaffa-concat":13,"gaffa-conditional":14,"gaffa-navigate":23,"gaffa-push":25,"gaffa-remove":26,"gaffa-set":27,"gaffa-toggle":30}],64:[function(require,module,exports){
 var url = require('url');
 
 module.exports = function(gaffa){
@@ -11049,7 +10698,7 @@ module.exports = function(gaffa){
         return oldAjax(settings);
     };
 };
-},{"url":65}],75:[function(require,module,exports){
+},{"url":55}],65:[function(require,module,exports){
 var app = {},
     Gaffa = require('gaffa'),
     gaffa = new Gaffa(),
@@ -11060,20 +10709,18 @@ var app = {},
 app.gaffa = gaffa;
 
 module.exports = app;
-},{"./actions":73,"./behaviours":76,"./views":88,"gaffa":41}],76:[function(require,module,exports){
+},{"./actions":63,"./behaviours":66,"./views":78,"gaffa":31}],66:[function(require,module,exports){
 module.exports = {
     pageLoad : require('gaffa-page-load'),
-    modelChange : require('gaffa-model-change'),
-    navigate : require('gaffa-navigate'),
-    notification : require('gaffa-notification')
+    modelChange : require('gaffa-model-change')
 };
-},{"gaffa-model-change":28,"gaffa-navigate":29,"gaffa-notification":30,"gaffa-page-load":31}],77:[function(require,module,exports){
+},{"gaffa-model-change":22,"gaffa-page-load":24}],67:[function(require,module,exports){
 function strap(app){
     app.gaffa.navigate(window.location.href, 'appBody.content');
 }
 
 module.exports = strap;
-},{}],78:[function(require,module,exports){
+},{}],68:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11091,7 +10738,7 @@ module.exports = function(app){
     return createAppBody();
 
 };
-},{}],79:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11112,7 +10759,7 @@ module.exports = function(app){
     return createAppWrapper();
 
 };
-},{"../controls/mainMenu":81,"./appBody":78,"./header":80}],80:[function(require,module,exports){
+},{"../controls/mainMenu":71,"./appBody":68,"./header":70}],70:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11161,7 +10808,7 @@ module.exports = function(app){
     return createHeader();
 
 };
-},{}],81:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11211,7 +10858,7 @@ module.exports = function(app){
     return createMenu();
 
 };
-},{}],82:[function(require,module,exports){
+},{}],72:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     app = require('./app'),
     bootstrapper = require('./bootstrapper'),
@@ -11251,7 +10898,7 @@ window.addEventListener('load', function(){
 
     bootstrapper(app);
 });
-},{"./ajax":74,"./app":75,"./bootstrapper":77,"./controls/appWrapper":79,"./gelExtensions":85,"./navigate":86,"./router":87,"gaffa":41}],83:[function(require,module,exports){
+},{"./ajax":64,"./app":65,"./bootstrapper":67,"./controls/appWrapper":69,"./gelExtensions":75,"./navigate":76,"./router":77,"gaffa":31}],73:[function(require,module,exports){
 var Gaffa = require('gaffa');
 
 function Back(){
@@ -11264,7 +10911,7 @@ Back.prototype.trigger = function(){
 };
 
 module.exports = Back;
-},{"gaffa":41}],84:[function(require,module,exports){
+},{"gaffa":31}],74:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     Flap = require('flaps'),
     crel = require('crel'),
@@ -11328,7 +10975,7 @@ Showable.prototype.render = function(){
 };
 
 module.exports = Showable;
-},{"crel":1,"doc-js":3,"flaps":7,"gaffa":41,"venfix":72}],85:[function(require,module,exports){
+},{"crel":1,"doc-js":3,"flaps":7,"gaffa":31,"venfix":62}],75:[function(require,module,exports){
 module.exports = function(app){
     require('gel-url')(app.gaffa.gedi.gel);
 
@@ -11358,7 +11005,7 @@ module.exports = function(app){
         }
     };
 };
-},{"gel-url":59}],86:[function(require,module,exports){
+},{"gel-url":49}],76:[function(require,module,exports){
 var url = require('url'),
     statham = require('statham');
 
@@ -11446,7 +11093,7 @@ module.exports = function(gaffa, router){
         gaffa.notifications.notify("navigation.begin");
 
         if(gaffa.cacheNavigates !== false && pageCache[href]){
-            success(statham.revive(pageCache[href]));
+            success(pageCache[href]);
             complete();
             return;
         }
@@ -11460,12 +11107,11 @@ module.exports = function(gaffa, router){
             error: error,
             complete: complete
         });
-    };
+    }
 
     return navigate;
-
 };
-},{"statham":70,"url":65}],87:[function(require,module,exports){
+},{"statham":60,"url":55}],77:[function(require,module,exports){
 var Router = require('route-tree');
 
 module.exports = new Router({
@@ -11477,12 +11123,11 @@ module.exports = new Router({
     }
 });
 module.exports.basePath = window.location.href.split('/').slice(0,-1).join('/');
-},{"route-tree":66}],88:[function(require,module,exports){
+},{"route-tree":56}],78:[function(require,module,exports){
 module.exports = {
     container : require('gaffa-container'),
     heading : require('gaffa-heading'),
     list : require('gaffa-list'),
-    group : require('gaffa-group'),
     form : require('gaffa-form'),
     label : require('gaffa-label'),
     text : require('gaffa-text'),
@@ -11491,13 +11136,10 @@ module.exports = {
     image : require('gaffa-image'),
     html : require('gaffa-html'),
     textbox : require('gaffa-textbox'),
-    textarea : require('gaffa-textarea'),
-    checkbox : require('gaffa-checkbox'),
-    switchContainer : require('gaffa-switch-container'),
 
     // --- custom
 
     showable: require('./gaffaExtensions/views/showable')
 
 };
-},{"./gaffaExtensions/views/showable":84,"gaffa-anchor":11,"gaffa-button":12,"gaffa-checkbox":13,"gaffa-container":17,"gaffa-form":20,"gaffa-group":22,"gaffa-heading":23,"gaffa-html":24,"gaffa-image":25,"gaffa-label":26,"gaffa-list":27,"gaffa-switch-container":35,"gaffa-text":37,"gaffa-textarea":38,"gaffa-textbox":39}]},{},[82])
+},{"./gaffaExtensions/views/showable":74,"gaffa-anchor":11,"gaffa-button":12,"gaffa-container":15,"gaffa-form":16,"gaffa-heading":17,"gaffa-html":18,"gaffa-image":19,"gaffa-label":20,"gaffa-list":21,"gaffa-text":28,"gaffa-textbox":29}]},{},[72])
