@@ -10776,7 +10776,7 @@ module.exports = function(app){
             title = new views.heading();
 
         title.text.value = 'My awesome app';
-        logo.source.value = '/images/logo.png';
+        logo.source.value = 'images/logo.png';
 
         header.classes.value = 'header';
 
