@@ -2,7 +2,7 @@ var beeline = require('beeline'),
     publicPath = './public';
 
 module.exports = function(routes){
-    routes['/'] = beeline.staticFile(publicPath + '/index.html', 'text/html', 0),
+    routes['/'] = beeline.staticFile(publicPath + '/index.html', 'text/html', 0);
     routes['/`path...`'] = beeline.staticDir(publicPath, {
         '.txt': 'text/plain',
         '.html': 'text/html',

@@ -11,7 +11,7 @@ gulp.task('styles', function() {
         .pipe(stylus({
             compress: true
         }))
-        .pipe(gulp.dest('./public/styles'));
+        .pipe(gulp.dest('./public/build'));
 });
 
 gulp.task('build', function() {
