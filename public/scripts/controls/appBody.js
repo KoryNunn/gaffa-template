@@ -4,7 +4,7 @@ module.exports = function(app){
         behaviours = app.behaviours;
 
     function createAppBody(){
-        var appBody = new views.container();
+        var appBody = new views.Container();
 
         appBody.classes.value = 'appBody';
         appBody.name = 'appBody'

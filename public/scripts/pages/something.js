@@ -1,29 +1,30 @@
-module.exports = function(app){
-    var views = app.views,
+module.exports = function(){
+    var app = require('../app'),
+        views = app.views,
         actions = app.actions,
         behaviours = app.behaviours;
 
     function createSomeForm(){
-        var someHeading = new views.heading();
+        var someHeading = new views.Heading();
         someHeading.level = 2;
         someHeading.text.binding = '(join ": " "Some value is" [someValue])';
 
-        var someTexbox = new views.textbox();
+        var someTexbox = new views.Textbox();
         someTexbox.updateEventName = 'keyup';
         someTexbox.value.binding = '[someValue]';
 
-        var someAction = new actions.remove();
+        var someAction = new actions.Remove();
         someAction.target.binding = '[someValue]';
 
-        var someButton = new views.button();
+        var someButton = new views.Button();
         someButton.text.value = 'Delete value';
         someButton.actions.click = [someAction];
 
-        var someButton2 = new views.button();
+        var someButton2 = new views.Button();
         someButton2.text.value = 'Delete value 2';
         someButton2.actions.click = [someAction];
 
-        var form = new views.form();
+        var form = new views.Form();
         form.views.content.add([
             someHeading,
             someTexbox,
@@ -35,9 +36,9 @@ module.exports = function(app){
     }
 
     function createSomePage(){
-        var somePage = new views.container(),
-            welcomeSection = new views.container(),
-            homeText = new views.label();
+        var somePage = new views.Container(),
+            welcomeSection = new views.Container(),
+            homeText = new views.Label();
 
         homeText.tagName = 'p';
         homeText.text.value = 'Some page';
@@ -56,6 +57,8 @@ module.exports = function(app){
         return somePage;
     }
 
-    return createSomePage();
+    return {
+        views: [createSomePage()]
+    };
 
 };

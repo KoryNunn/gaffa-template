@@ -4,10 +4,10 @@ module.exports = function(app){
         behaviours = app.behaviours;
 
     function createMenuItem(labelSettings, href){
-        var menuItem = new views[href ? 'anchor' : 'button']({
+        var menuItem = new views[href ? 'Anchor' : 'Button']({
                 text: labelSettings
             }),
-            closeMenu = new actions.set();
+            closeMenu = new actions.Set();
 
         closeMenu.source.value = false;
         closeMenu.target.binding = '[showMainMenu]';
@@ -34,7 +34,7 @@ module.exports = function(app){
     }
 
     function createMenu(){
-        var menu = new views.showable();
+        var menu = new views.Showable();
 
         menu.show.binding = '[showMainMenu]';
         menu.views.content.add([

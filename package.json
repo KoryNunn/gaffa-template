@@ -9,12 +9,11 @@
     "crel": "^1.1.0",
     "doc-js": "^0.4.1",
     "moment": "~2.5.0",
-    "gaffa": "^1.5.0",
+    "gaffa": "^1.6.1",
     "route-tree": "^1.0.0",
     "gel-url": "0.0.2",
     "venfix": "0.0.2",
     "statham": "^1.0.0",
-
     "gaffa-container": "^1.0.0",
     "gaffa-heading": "^1.0.0",
     "gaffa-list": "^1.0.0",
@@ -26,25 +25,24 @@
     "gaffa-image": "^1.0.0",
     "gaffa-html": "^1.0.0",
     "gaffa-textbox": "^1.0.0",
-
     "gaffa-ajax": "^1.0.0",
-    "gaffa-navigate":"^1.0.0",
-    "gaffa-set":"^1.0.0",
-    "gaffa-push":"^1.0.0",
-    "gaffa-concat":"^1.0.0",
-    "gaffa-remove":"^1.0.0",
-    "gaffa-toggle":"^1.0.0",
-    "gaffa-conditional":"^1.0.0",
-
-    "gaffa-page-load":"^1.0.0",
-    "gaffa-model-change":"^1.0.0"
+    "gaffa-navigate": "^1.0.0",
+    "gaffa-set": "^1.0.0",
+    "gaffa-push": "^1.0.0",
+    "gaffa-concat": "^1.0.0",
+    "gaffa-remove": "^1.0.0",
+    "gaffa-toggle": "^1.0.0",
+    "gaffa-conditional": "^1.0.0",
+    "gaffa-page-load": "^1.0.0",
+    "gaffa-model-change": "^1.0.0"
   },
   "devDependencies": {
     "gulp": "3.x.x",
-    "gulp-stylus": "0.0.x",
-    "gulp-uglify": "0.1.x",
     "gulp-browserify": "0.2.x",
-    "gulp-concat": "2.1.x"
+    "gulp-concat": "2.1.x",
+    "vinyl-source-stream": "~0.1.1",
+    "browserify": "~4.1.6",
+    "gaffa-viewbuilder": "~2.1.0"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

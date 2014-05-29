@@ -4,14 +4,14 @@ module.exports = function(app){
         behaviours = app.behaviours;
 
     function createHeader(){
-        var header = new views.container(),
-            actionRegion = new views.container(),
-            contextRegion = new views.container(),
-            isHomeAction = new actions.conditional(),
-            back = new actions.navigate(),
-            toggleMenu = new actions.toggle(),
-            logo = new views.image(),
-            title = new views.heading();
+        var header = new views.Container(),
+            actionRegion = new views.Container(),
+            contextRegion = new views.Container(),
+            isHomeAction = new actions.Conditional(),
+            back = new actions.Navigate(),
+            toggleMenu = new actions.Toggle(),
+            logo = new views.Image(),
+            title = new views.Heading();
 
         title.text.value = 'My awesome app';
         logo.source.value = 'images/logo.png';

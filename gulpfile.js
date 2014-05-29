@@ -1,10 +1,11 @@
 var gulp = require('gulp'),
     stylus = require('gulp-stylus'),
     concat = require('gulp-concat'),
-    minify = require('gulp-uglify'),
-    browserify = require('gulp-browserify'),
+    source = require('vinyl-source-stream');
+    browserify = require('browserify'),
     fs = require('fs'),
-    pagebuilder = require('./pagebuilder');
+    path = require('path'),
+    viewBuilder = require('gaffa-viewbuilder');
 
 gulp.task('styles', function() {
     gulp.src('./public/styles/index.styl')
@@ -15,16 +16,13 @@ gulp.task('styles', function() {
 });
 
 gulp.task('build', function() {
-    gulp.src(['./public/scripts/index.js'])
-        .pipe(browserify({
-          debug : false
-        }))
-
-        // Comment this line out for development
-        //.pipe(minify())
-
-        .pipe(concat('../build/app.browser.js'))
-        .pipe(gulp.dest('./public/scripts'))
+    browserify('./public/scripts/index.js')
+        .bundle()
+        .on('error', function(error){
+            console.log(error);
+        })
+        .pipe(source('index.js'))
+        .pipe(gulp.dest('./public/build/'))
         .on('end', function(){
             fs.readdir('./public/scripts/pages', function(error, files){
                 if(error){
@@ -32,20 +30,33 @@ gulp.task('build', function() {
                     return;
                 }
 
-                console.log(files);
+                files = files.filter(function(file) {
+                    return path.extname(file) === '.js';
+                });
 
-                files.forEach(function(file){
-                    var parts = file.split('.');
-                    if(parts[1] !== 'js'){
-                        return;
+                var paths = files.map(function(file) {
+                    return './public/scripts/pages/' + file;
+                });
+
+                viewBuilder(paths, function(error, views){
+                    if(error){
+                        return console.log(error);
                     }
-
-                    fs.writeFile('./public/build/pages/' + parts[0] + '.json', pagebuilder('./public/scripts/app', './public/scripts/pages/' + file), function(){
-                        if(error){
-                            console.error(error);
-                        }
+                    views.forEach(function(view){
+                        var baseName = path.basename(view.sourcePath, '.js');
+                        fs.writeFile(path.join(
+                            './public/build/pages',
+                            baseName + '.json'
+                        ), view.result, function(error){
+                            if(error){
+                                console.log(error);
+                            }else{
+                                console.log('Built ' + baseName);
+                            }
+                        });
                     });
                 });
+
             });
         });
 });

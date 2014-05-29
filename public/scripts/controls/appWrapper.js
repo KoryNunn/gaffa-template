@@ -4,7 +4,7 @@ module.exports = function(app){
         behaviours = app.behaviours;
 
     function createAppWrapper(){
-        var wrapper = new views.container();
+        var wrapper = new views.Container();
 
         wrapper.views.content.add([
             require('./header')(app),

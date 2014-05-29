@@ -8,9 +8,6 @@ var Gaffa = require('gaffa'),
 // Debugging
 window.gaffa = app.gaffa;
 
-// Debug only. Turns off DOM update limmiting.
-// gaffa.debug = true;
-
 app.router = router;
 
 require('./gelExtensions')(app);

@@ -28,7 +28,7 @@ module.exports = function(gaffa, router){
         }
         if (app.views) {
             for(var i = 0; i < app.views.length; i++) {
-                app.views[i] = gaffa.initialiseViewItem(app.views[i], gaffa, gaffa.views.constructors);
+                app.views[i] = gaffa.initialiseViewItem(app.views[i], gaffa, gaffa.views._constructors);
             }
             targetView.add(app.views);
         }
