@@ -1,18 +1,18 @@
 module.exports = {
-    container : require('gaffa-container'),
-    heading : require('gaffa-heading'),
-    list : require('gaffa-list'),
-    form : require('gaffa-form'),
-    label : require('gaffa-label'),
-    text : require('gaffa-text'),
-    button : require('gaffa-button'),
-    anchor : require('gaffa-anchor'),
-    image : require('gaffa-image'),
-    html : require('gaffa-html'),
-    textbox : require('gaffa-textbox'),
+    Container : require('gaffa-container'),
+    Heading : require('gaffa-heading'),
+    List : require('gaffa-list'),
+    Form : require('gaffa-form'),
+    Label : require('gaffa-label'),
+    Text : require('gaffa-text'),
+    Button : require('gaffa-button'),
+    Anchor : require('gaffa-anchor'),
+    Image : require('gaffa-image'),
+    Html : require('gaffa-html'),
+    Textbox : require('gaffa-textbox'),
 
     // --- custom
 
-    showable: require('./gaffaExtensions/views/showable')
+    Showable: require('./gaffaExtensions/views/showable')
 
 };

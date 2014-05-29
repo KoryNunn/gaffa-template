@@ -1,13 +1,13 @@
 module.exports = {
-    navigate : require('gaffa-navigate'),
-    set : require('gaffa-set'),
-    push : require('gaffa-push'),
-    concat : require('gaffa-concat'),
-    remove : require('gaffa-remove'),
-    toggle : require('gaffa-toggle'),
-    conditional : require('gaffa-conditional'),
-    ajax : require('gaffa-ajax'),
+    Navigate : require('gaffa-navigate'),
+    Set : require('gaffa-set'),
+    Push : require('gaffa-push'),
+    Concat : require('gaffa-concat'),
+    Remove : require('gaffa-remove'),
+    Toggle : require('gaffa-toggle'),
+    Conditional : require('gaffa-conditional'),
+    Ajax : require('gaffa-ajax'),
 
     // custom
-    back: require('./gaffaExtensions/actions/back')
+    Back: require('./gaffaExtensions/actions/back')
 };
