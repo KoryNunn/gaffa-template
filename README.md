@@ -26,4 +26,14 @@ Behaviours
 
 ## Running the app
 
-The app can be run straight off the file system via index.html, or, a static server can be started in the root of the directory.
+First:
+
+    npm install
+
+Then
+
+    gulp
+
+If you don't have gulp, you will need to install it globally with
+
+    npm install -g gulp
