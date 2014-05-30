@@ -1,1 +1,0 @@
-{"views":[{"classes":{"value":"home"},"behaviours":[{"actions":{"load":[{"target":{"binding":"[/homeText]"},"url":{"value":"homeText.html"},"dataType":"text","type":"ajax"}]},"type":"pageLoad"}],"views":{"content":[{"views":{"content":[{"html":{"binding":"[/homeText]"},"type":"html"}]},"tagName":"section","type":"container"}]},"type":"container"}]}
