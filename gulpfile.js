@@ -5,26 +5,27 @@ var gulp = require('gulp'),
     browserify = require('browserify'),
     fs = require('fs'),
     path = require('path'),
-    viewBuilder = require('gaffa-viewbuilder');
+    viewBuilder = require('gaffa-viewbuilder'),
+    nodeStatic = require('node-static');
 
 gulp.task('styles', function() {
-    gulp.src('./public/styles/index.styl')
+    gulp.src('./styles/index.styl')
         .pipe(stylus({
             compress: true
         }))
-        .pipe(gulp.dest('./public/build'));
+        .pipe(gulp.dest('./build'));
 });
 
 gulp.task('build', function() {
-    browserify('./public/scripts/index.js')
+    browserify('./scripts/index.js')
         .bundle()
         .on('error', function(error){
             console.log(error);
         })
         .pipe(source('index.js'))
-        .pipe(gulp.dest('./public/build/'))
+        .pipe(gulp.dest('./build/'))
         .on('end', function(){
-            fs.readdir('./public/scripts/pages', function(error, files){
+            fs.readdir('./scripts/pages', function(error, files){
                 if(error){
                     console.error(error);
                     return;
@@ -35,7 +36,7 @@ gulp.task('build', function() {
                 });
 
                 var paths = files.map(function(file) {
-                    return './public/scripts/pages/' + file;
+                    return './scripts/pages/' + file;
                 });
 
                 viewBuilder(paths, function(error, views){
@@ -45,7 +46,7 @@ gulp.task('build', function() {
                     views.forEach(function(view){
                         var baseName = path.basename(view.sourcePath, '.js');
                         fs.writeFile(path.join(
-                            './public/build/pages',
+                            './build/pages',
                             baseName + '.json'
                         ), view.result, function(error){
                             if(error){
@@ -62,8 +63,21 @@ gulp.task('build', function() {
 });
 
 gulp.task('watch', function () {
-   gulp.watch(['./public/styles/**/*.styl'], ['styles']);
-   gulp.watch(['./public/scripts/**/*.js'], ['build']);
+   gulp.watch(['./styles/**/*.styl'], ['styles']);
+   gulp.watch(['./scripts/**/*.js'], ['build']);
 });
 
-gulp.task('default', ['watch', 'styles', 'build']);
+gulp.task('serve', function () {
+    var file = new nodeStatic.Server('./');
+
+    require('http').createServer(function (request, response) {
+        request.addListener('end', function () {
+            //
+            // Serve files!
+            //
+            file.serve(request, response);
+        }).resume();
+    }).listen(8080);
+});
+
+gulp.task('default', ['watch', 'styles', 'build', 'serve']);

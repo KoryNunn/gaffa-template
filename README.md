@@ -2,7 +2,7 @@
 
 A template for creating a gaffa application.
 
-##Other modules you might like to include in package.json
+## Other modules you might like to include in package.json
 
 Views
 
@@ -23,3 +23,7 @@ Behaviours
 
     "gaffa-navigate-behaviour":"^1.0.0"
     "gaffa-notification":"^1.0.0"
+
+## Running the app
+
+The app can be run straight off the file system via index.html, or, a static server can be started in the root of the directory.

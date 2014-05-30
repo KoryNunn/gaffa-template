@@ -5,7 +5,7 @@
   "main": "server.js",
   "dependencies": {
     "beeline": "0.1.x",
-    "flaps": "^1.0.0",
+    "flaps": "^2.1.0",
     "crel": "^1.1.0",
     "doc-js": "^0.4.1",
     "moment": "~2.5.0",
@@ -42,7 +42,8 @@
     "gulp-concat": "2.1.x",
     "vinyl-source-stream": "~0.1.1",
     "browserify": "~4.1.6",
-    "gaffa-viewbuilder": "~2.1.0"
+    "gaffa-viewbuilder": "~2.1.0",
+    "node-static": "~0.7.3"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

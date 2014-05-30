@@ -1,0 +1,12 @@
+.page{
+    transition(opacity, 0.3s, linear);
+    animate(fadeIn 0.3s 1 linear);
+
+    &.removed{
+        animate(fadeOut 0.3s 1 linear);
+        position:absolute;
+        width:100%;
+        z-index:2;
+        opacity: 0;
+    }
+}

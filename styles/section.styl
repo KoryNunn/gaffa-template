@@ -1,0 +1,18 @@
+section{
+    margin-bottom: 30px;
+    position: relative;
+
+    h1{
+        font-weight: 300;
+        margin-top: 0;
+        display:inline-block;
+        margin-right: 10px;
+    }
+
+    &[disabled=disabled]{
+        & > *{
+            opacity: 0.5;
+            pointer-events:none;
+        }
+    }
+}
