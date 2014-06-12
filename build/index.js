@@ -1814,7 +1814,7 @@ function isNullOrUndefined(arg) {
     }
 }(this, function () {
     // based on http://stackoverflow.com/questions/384286/javascript-isdom-how-do-you-check-if-a-javascript-object-is-a-dom-object
-    var isNode = typeof Node === 'function'
+    var isNode = typeof Node === 'object'
         ? function (object) { return object instanceof Node; }
         : function (object) {
             return object
@@ -2550,6 +2550,7 @@ module.exports = function isList(object){
 var doc = require('doc-js'),
     EventEmitter = require('events').EventEmitter,
     interact = require('interact-js'),
+    pythagoreanEquation = require('math-js/geometry/pythagoreanEquation'),
     crel = require('crel'),
     venfix = require('venfix'),
     unitr = require('unitr'),
@@ -2564,19 +2565,235 @@ var LEFT = 'left';
     CLOSE = 'close'
     HORIZONTAL = 'horizontal',
     VERTICAL = 'vertical',
-    CLOSE = 'close';
+    CLOSE = 'close',
+    NE = 45,
+    NW = -45,
+    SE = 135,
+    SW = -135,
+    opposites = {};
+
+opposites[LEFT] = RIGHT;
+opposites[RIGHT] = LEFT;
+opposites[TOP] = BOTTOM;
+opposites[BOTTOM] = TOP;
+
+var allFlaps = [],
+    openStack = [];
+
+function getSideForAngle(angle){
+    return angle > SW ?
+        angle > NW ?
+            angle > NE ?
+                angle > SE ? BOTTOM : RIGHT :
+            TOP :
+        LEFT :
+    BOTTOM;
+}
 
 function getPlane(angle){
-    return ((angle > 45 && angle < 135) || (angle < -45 && angle > -135)) ? HORIZONTAL : VERTICAL;
+    return ((angle > NE && angle < SE) || (angle < NW && angle > SW)) ? HORIZONTAL : VERTICAL;
 }
 
 function getPlaneForSide(side){
     return (side === LEFT || side === RIGHT) ? HORIZONTAL : VERTICAL;
 }
 
+function getFlapBoxInfo(flap){
+    var targetElement = flap.distance ? flap.element : flap.content,
+        boundingRect = targetElement.getBoundingClientRect(),
+        gutter = flap.gutter,
+        box = {
+            left: boundingRect.left,
+            marginLeft: boundingRect.left,
+            top: boundingRect.top,
+            marginTop: boundingRect.top,
+            right: boundingRect.right,
+            marginRight: boundingRect.right,
+            bottom: boundingRect.bottom,
+            marginBottom: boundingRect.bottom,
+            width: boundingRect.width,
+            marginWidth: boundingRect.width,
+            height: boundingRect.height,
+            marginHeight: boundingRect.height
+        }
+
+    if(flap.side === LEFT){
+        box.marginWidth += gutter;
+        box.marginRight += gutter;
+    }else if(flap.side === RIGHT){
+        box.marginWidth += gutter;
+        box.marginLeft -= gutter;
+    }else if(flap.side === BOTTOM){
+        box.marginHeight += gutter;
+        box.marginTop -= gutter;
+    }else if(flap.side === TOP){
+        box.marginHeight += gutter;
+        box.marginBottom += gutter;
+    }
+
+    return box;
+}
+
+function bound(min, max, value){
+    return Math.min(Math.max(value, min), max);
+}
+
+function getDistanceFromInteraction(interaction, flapInfo){
+    var horizontalBound = bound.bind(null, window.scrollX, window.innerWidth + window.scrollX),
+        verticalBound = bound.bind(null, window.scrollY, window.innerHeight + window.scrollY);
+
+    return pythagoreanEquation(
+        interaction.pageX - horizontalBound(flapInfo.box.marginLeft + flapInfo.box.marginWidth) - horizontalBound(flapInfo.box.marginWidth) / 2,
+        interaction.pageY - verticalBound(flapInfo.box.marginTop + flapInfo.box.marginHeight) - verticalBound(flapInfo.box.marginHeight) / 2
+    );
+}
+
+function getWorthyness(interaction, flapInfo1, flapInfo2){
+    var interactionProximity = getDistanceFromInteraction(interaction, flapInfo2) - getDistanceFromInteraction(interaction, flapInfo1);
+
+    return interactionProximity;
+}
+
+function getCandidatesForInteraction(interaction,flaps){
+    return flaps.reduce(function(results, flap) {
+        var box = getFlapBoxInfo(flap),
+            angle = interaction.getCurrentAngle(true);
+
+        if(
+            !flap.beingDragged &&
+            getPlaneForSide(flap.side) === getPlane(angle) &&
+            interaction.pageX - window.scrollX > box.marginLeft &&
+            interaction.pageX - window.scrollX < box.marginRight &&
+            interaction.pageY - window.scrollY > box.marginTop &&
+            interaction.pageY - window.scrollY < box.marginBottom
+        ){
+            results.push({
+                box: box,
+                flap: flap
+            });
+        }
+
+
+        return results;
+
+    }, []);
+}
+
+function moveableCandidates(interaction, candidate){
+    var angle = interaction.getCurrentAngle(true),
+        plane = getPlane(angle),
+        flap = candidate.flap,
+        side = flap.side,
+        distance = flap.distance,
+        maxPosition = flap.renderedWidth(),
+        minPosition = 0;
+
+    if(distance > minPosition && distance < maxPosition){
+        return true;
+    }
+
+    var canMoveDirection = distance === minPosition ? opposites[side] : side;
+
+    return canMoveDirection === getSideForAngle(angle);
+}
+
+function setLastInList(array, item){
+    var index = array.indexOf(item);
+
+    if(index>=0){
+        array.splice(index, 1);
+        array.push(item);
+    }
+}
+
+function setFirstInList(array, item){
+    var index = array.indexOf(item);
+
+    if(index>=0){
+        array.splice(index, 1);
+        array.unshift(item);
+    }
+}
+
+function forEachOpenFlap(fn){
+    var i = allFlaps.length;
+    while (i) {
+        i--;
+        var flap = allFlaps[i];
+        if(flap.state === OPEN){
+            fn(flap);
+        }else{
+            break;
+        }
+    };
+}
+
+function delegateInteraction(interaction){
+    if(interaction._flap){
+        interaction._flap._drag(interaction);
+    }
+
+    if(interaction._delegated){
+        return;
+    }
+
+    interaction._delegated = true;
+
+    var candidates = getCandidatesForInteraction(interaction, allFlaps),
+        moveable = candidates.filter(moveableCandidates.bind(null, interaction));
+
+    if(moveable.length){
+        candidates = moveable;
+    }
+
+    var flapCandidate = candidates
+        .sort(getWorthyness.bind(null, interaction))
+        .pop();
+
+    if(!flapCandidate){
+        return;
+    }
+
+    interaction.preventDefault();
+
+    interaction._flap = flapCandidate.flap;
+    flapCandidate.flap._start(interaction);
+
+    forEachOpenFlap(function(flap){
+        if(
+            flap !== flapCandidate.flap &&
+            !doc(flapCandidate.flap.element).closest(flap.element)
+        ){
+            flap.close();
+        }
+    });
+}
+
+function endInteraction(interaction){
+    if(interaction._flap){
+        interaction._flap._end(interaction);
+        interaction._flap = null;
+    }else{
+        forEachOpenFlap(function(flap){
+            if(doc(interaction.target).closest(flap.element)){
+                flap._activate(interaction.originalEvent);
+            }
+        });
+    }
+}
+
+function bindEvents(){
+    interact.on('drag', document, delegateInteraction);
+    interact.on('end', document, endInteraction);
+    interact.on('cancel', document, endInteraction);
+}
+
+bindEvents();
+
 function Flap(element){
     this.render(element);
     this.init();
+    allFlaps.push(this);
 }
 Flap.prototype = Object.create(EventEmitter.prototype);
 
@@ -2585,8 +2802,15 @@ Flap.prototype.distance = 0;
 Flap.prototype.state = CLOSED;
 Flap.prototype.width = 280;
 Flap.prototype.side = LEFT;
-Flap.prototype.gutter = 20;
+Flap.prototype.gutter = 50;
 
+Flap.prototype.destroy = function(){
+    var index = allFlaps.indexOf(this);
+
+    if(index >= 0){
+        allFlaps.splice(index, 1);
+    }
+};
 Flap.prototype.render = function(element){
     this.element = element || crel('div',
         crel('div')
@@ -2596,23 +2820,9 @@ Flap.prototype.render = function(element){
     this.content = this.element.childNodes[0];
     this.element.flap = this;
 };
-Flap.prototype.bind = function(){
-    var flap = this,
-        delegateTarget = doc(this.delegateTarget)[0] || document;
-
-    // Allow starting the drag on a delegate target
-    interact.on('start', delegateTarget, flap._start.bind(flap));
-    interact.on('start', this.content, flap._start.bind(flap));
-
-    // Still use document for the other events for robustness.
-    interact.on('drag', document, flap._drag.bind(flap));
-    interact.on('end', document, flap._end.bind(flap));
-    interact.on('cancel', document, flap._end.bind(flap));
-};
 Flap.prototype.init = function(){
     var flap = this;
     laidout(this.element, function(){
-        flap.bind();
         if(this.enabled !== false){
             flap.enable();
         }else{
@@ -2690,80 +2900,45 @@ Flap.prototype.disable = function(){
     this.show();
     this.update();
 };
-Flap.prototype._isValidInteraction = function(interaction){
-    if(this.constructor.openFlap){
-        return this.constructor.openFlap === this;
-    }
-    if(this.distance){
-        return true;
-    }
-    if(this.side === LEFT){
-        return interaction.pageX - window.scrollX < this.distance + this.gutter;
-    }else if(this.side === RIGHT){
-        return interaction.pageX - window.scrollX > window.innerWidth - this.gutter;
-    }else if(this.side === BOTTOM){
-        return interaction.pageY - window.scrollY > window.innerHeight - this.gutter;
-    }else if(this.side === TOP){
-        return interaction.pageY - window.scrollY < this.distance + this.gutter;
-    }
-};
 Flap.prototype._start = function(interaction){
-    var flap = this;
-
     if(!this.enabled){
         return;
     }
 
-    this._interactionStarted = true;
-
-    if(this._isValidInteraction(interaction)){
-        this._setOpen();
-    }
+    this._interaction = interaction;
+    this._setOpen();
 };
 Flap.prototype._drag = function(interaction){
+    if(!this.enabled){
+        return;
+    }
+
     var flap = this;
 
-    if(flap.constructor.openFlap === flap){
-        var angle = interaction.getCurrentAngle(true);
+    var side = flap.side;
 
-        var side = flap.side;
-
-        if(!flap.beingDragged){
-            if(getPlaneForSide(side) !== getPlane(angle)){
-                flap.constructor.openFlap = null;
-                return;
-            }
-        }
-
-        interaction.preventDefault();
-
-        flap.beingDragged = true;
-        flap.startDistance = flap.startDistance || flap.distance;
-        if(flap.side === LEFT){
-            flap.distance = flap.startDistance + interaction.pageX - interaction.lastStart.pageX;
-        }else if(flap.side === RIGHT){
-            flap.distance = flap.startDistance - interaction.pageX + interaction.lastStart.pageX;
-        }else if(flap.side === BOTTOM){
-            flap.distance = flap.startDistance - interaction.pageY + interaction.lastStart.pageY;
-        }else if(flap.side === TOP){
-            flap.distance = flap.startDistance + interaction.pageY - interaction.lastStart.pageY;
-        }
-        flap.distance = Math.max(Math.min(flap.distance, flap.renderedWidth()), 0);
-        flap.update();
-        flap.speed = flap.distance - flap.oldDistance;
-        flap.oldDistance = flap.distance;
+    flap.beingDragged = true;
+    flap.startDistance = flap.startDistance || flap.distance;
+    if(flap.side === LEFT){
+        flap.distance = flap.startDistance + interaction.pageX - interaction.lastStart.pageX;
+    }else if(flap.side === RIGHT){
+        flap.distance = flap.startDistance - interaction.pageX + interaction.lastStart.pageX;
+    }else if(flap.side === BOTTOM){
+        flap.distance = flap.startDistance - interaction.pageY + interaction.lastStart.pageY;
+    }else if(flap.side === TOP){
+        flap.distance = flap.startDistance + interaction.pageY - interaction.lastStart.pageY;
     }
+    flap.distance = Math.max(Math.min(flap.distance, flap.renderedWidth()), 0);
+    flap.update();
+    flap.speed = flap.distance - flap.oldDistance;
+    flap.oldDistance = flap.distance;
 };
 Flap.prototype._end = function(interaction){
-    this._interactionStarted = false;
-    if(this.constructor.openFlap !== this){
+    if(!this.enabled){
         return;
     }
-    if(!this.beingDragged){
-        this.settle(this.distance <= 0 ? CLOSE : OPEN);
-        this._activate(interaction);
-        return;
-    }
+
+    this._interaction = null;
 
     this.startDistance = null;
     this.beingDragged = false;
@@ -2784,9 +2959,10 @@ Flap.prototype._activate = function(event){
     if(!this.enabled){
         return;
     }
+
     if(
-        !doc(event.target).closest(this.content) &&
-        this.constructor.openFlap === this
+        !this.beingDragged &&
+        !doc(event.target).closest(this.content)
     ){
         event.preventDefault();
         this.beingDragged = false;
@@ -2794,19 +2970,17 @@ Flap.prototype._activate = function(event){
     }
 };
 Flap.prototype._setOpen = function(){
-    if(this.constructor.openFlap !== this){
-        var flap = this;
-        this.constructor.openFlap = this;
-        this.show();
-        this.state = OPEN;
-        this.emit(OPEN);
+    var flap = this;
+    this.show();
+    this.state = OPEN;
+    setLastInList(allFlaps, this);
+    this.emit(OPEN);
 
-        // This prevents the flap from screwing up
-        // events on elements that may be under the swipe zone
-        this._pointerEventTimeout = setTimeout(function(){
-            flap.element.style[venfix('pointerEvents')] = 'all';
-        },500);
-    }
+    // This prevents the flap from screwing up
+    // events on elements that may be under the swipe zone
+    this._pointerEventTimeout = setTimeout(function(){
+        flap.element.style[venfix('pointerEvents')] = 'all';
+    },500);
 };
 Flap.prototype.hide = function(){
     if(this.element.style.visibility !== 'hidden'){
@@ -2819,12 +2993,12 @@ Flap.prototype.show = function(){
     }
 };
 Flap.prototype._setClosed = function(){
-    this.constructor.openFlap = null;
     clearTimeout(this._pointerEventTimeout);
     this.element.style[venfix('pointerEvents')] = 'none';
     this.hide();
     this.state = CLOSED;
     this.emit(CLOSE);
+    setFirstInList(allFlaps, this);
 };
 Flap.prototype.update = function(interaction){
     var flap = this;
@@ -2896,13 +3070,13 @@ Flap.prototype.percentOpen = function(){
     return parseFloat(100 / this.renderedWidth() * this.distance) || 0;
 };
 Flap.prototype.open = function(){
-    if(!this.enabled || this._interactionStarted){
+    if(!this.enabled || this._interaction){
         return;
     }
     this.settle(OPEN);
 };
 Flap.prototype.close = function(){
-    if(!this.enabled || this._interactionStarted){
+    if(!this.enabled || this._interaction){
         return;
     }
     this.settle(CLOSE);
@@ -2916,7 +3090,7 @@ Flap.prototype.renderedWidth = function(){
     }
 };
 module.exports = Flap;
-},{"crel":8,"doc-js":10,"events":1,"interact-js":15,"laidout":16,"unitr":17,"venfix":66}],15:[function(require,module,exports){
+},{"crel":8,"doc-js":10,"events":1,"interact-js":15,"laidout":16,"math-js/geometry/pythagoreanEquation":17,"unitr":18,"venfix":75}],15:[function(require,module,exports){
 var interactions = [],
     minMoveDistance = 5,
     interact,
@@ -3389,6 +3563,10 @@ module.exports = function laidout(element, callback){
     document.addEventListener('DOMNodeInserted', recheckElement);
 };
 },{}],17:[function(require,module,exports){
+module.exports = function(sideA, sideB){
+    return Math.sqrt(Math.pow(sideA, 2) + Math.pow(sideB, 2));
+}
+},{}],18:[function(require,module,exports){
 var parseRegex = /^(-?(?:\d+|\d+\.\d+|\.\d+))([^\.]*?)$/;
 
 function parse(input){
@@ -3430,7 +3608,7 @@ function addUnit(input, unit){
 
 module.exports = addUnit;
 module.exports.parse = parse;
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "ajax";
 
@@ -3466,10 +3644,7 @@ Ajax.prototype.trigger = function(parent, scope, event){
                 });
             }
             action.triggerActions('error', scope, event);
-            gaffa.notifications.notify("ajax.error." + action.kind, error);
         };
-
-    gaffa.notifications.notify("ajax.begin." + action.kind);
 
     if(action.dataType === 'formData'){
         var formData = new FormData();
@@ -3513,8 +3688,6 @@ Ajax.prototype.trigger = function(parent, scope, event){
             });
 
             action.triggerActions('success', scope, event);
-
-            gaffa.notifications.notify("ajax.success." + action.kind);
         },
         error: errorHandler,
         complete:function(){
@@ -3523,7 +3696,6 @@ Ajax.prototype.trigger = function(parent, scope, event){
                 scope: scope
             });
             action.triggerActions('complete', scope, event);
-            gaffa.notifications.notify("ajax.complete." + action.kind);
         }
     };
 
@@ -3547,7 +3719,7 @@ Ajax.prototype.headers = new Gaffa.Property();
 Ajax.prototype.url = new Gaffa.Property();
 
 module.exports = Ajax;
-},{"gaffa":40}],19:[function(require,module,exports){
+},{"gaffa":42}],20:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -3612,16 +3784,13 @@ Anchor.prototype.href = new Gaffa.Property(function(viewModel, value){
 });
 
 module.exports = Anchor;
-},{"crel":8,"gaffa":40}],20:[function(require,module,exports){
-"use strict";
-
+},{"crel":8,"gaffa":42}],21:[function(require,module,exports){
 var Gaffa = require('gaffa'),
-    crel = require('crel'),
-    viewType = "button";
+    crel = require('crel');
 
 function Button(){}
 Button = Gaffa.createSpec(Button, Gaffa.ContainerView);
-Button.prototype.type = viewType;
+Button.prototype._type = 'button';
 
 Button.prototype.render = function(){
     var textNode = document.createTextNode(''),
@@ -3629,7 +3798,7 @@ Button.prototype.render = function(){
 
     this.views.content.element = renderedElement;
 
-    this.text.textNode = textNode;
+    this.textNode = textNode;
 
     this.renderedElement = renderedElement;
 
@@ -3637,13 +3806,13 @@ Button.prototype.render = function(){
 
 Button.prototype.text = new Gaffa.Property(function(view, value){
     if(value !== null && value !== undefined){
-        this.textNode.textContent = value;
+        view.textNode.textContent = value;
     }else{
-        this.textNode.textContent = '';
+        view.textNode.textContent = '';
     }
 });
 
-Button.prototype.subType = new Gaffa.Property(function(viewModel, value){
+Button.prototype.type = new Gaffa.Property(function(viewModel, value){
     viewModel.renderedElement.setAttribute("type", value || 'button');
 });
 
@@ -3656,7 +3825,139 @@ Button.prototype.disabled = new Gaffa.Property(function(viewModel, value){
 });
 
 module.exports = Button;
-},{"crel":8,"gaffa":40}],21:[function(require,module,exports){
+},{"crel":22,"gaffa":42}],22:[function(require,module,exports){
+//Copyright (C) 2012 Kory Nunn
+
+//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+/*
+
+    This code is not formatted for readability, but rather run-speed and to assist compilers.
+
+    However, the code's intention should be transparent.
+
+    *** IE SUPPORT ***
+
+    If you require this library to work in IE7, add the following after declaring crel.
+
+    var testDiv = document.createElement('div'),
+        testLabel = document.createElement('label');
+
+    testDiv.setAttribute('class', 'a');
+    testDiv['className'] !== 'a' ? crel.attrMap['class'] = 'className':undefined;
+    testDiv.setAttribute('name','a');
+    testDiv['name'] !== 'a' ? crel.attrMap['name'] = function(element, value){
+        element.id = value;
+    }:undefined;
+
+
+    testLabel.setAttribute('for', 'a');
+    testLabel['htmlFor'] !== 'a' ? crel.attrMap['for'] = 'htmlFor':undefined;
+
+
+
+*/
+
+(function (root, factory) {
+    if (typeof exports === 'object') {
+        module.exports = factory();
+    } else if (typeof define === 'function' && define.amd) {
+        define(factory);
+    } else {
+        root.crel = factory();
+    }
+}(this, function () {
+    // based on http://stackoverflow.com/questions/384286/javascript-isdom-how-do-you-check-if-a-javascript-object-is-a-dom-object
+    var isNode = typeof Node === 'function'
+        ? function (object) { return object instanceof Node; }
+        : function (object) {
+            return object
+                && typeof object === 'object'
+                && typeof object.nodeType === 'number'
+                && typeof object.nodeName === 'string';
+        };
+    var isArray = function(a){ return a instanceof Array; };
+    var appendChild = function(element, child) {
+      if(!isNode(child)){
+          child = document.createTextNode(child);
+      }
+      element.appendChild(child);
+    };
+
+
+    function crel(){
+        var document = window.document,
+            args = arguments, //Note: assigned to a variable to assist compilers. Saves about 40 bytes in closure compiler. Has negligable effect on performance.
+            element = args[0],
+            child,
+            settings = args[1],
+            childIndex = 2,
+            argumentsLength = args.length,
+            attributeMap = crel.attrMap;
+
+        element = isNode(element) ? element : document.createElement(element);
+        // shortcut
+        if(argumentsLength === 1){
+            return element;
+        }
+
+        if(typeof settings !== 'object' || isNode(settings) || isArray(settings)) {
+            --childIndex;
+            settings = null;
+        }
+
+        // shortcut if there is only one child that is a string
+        if((argumentsLength - childIndex) === 1 && typeof args[childIndex] === 'string' && element.textContent !== undefined){
+            element.textContent = args[childIndex];
+        }else{
+            for(; childIndex < argumentsLength; ++childIndex){
+                child = args[childIndex];
+
+                if(child == null){
+                    continue;
+                }
+
+                if (isArray(child)) {
+                  for (var i=0; i < child.length; ++i) {
+                    appendChild(element, child[i]);
+                  }
+                } else {
+                  appendChild(element, child);
+                }
+            }
+        }
+
+        for(var key in settings){
+            if(!attributeMap[key]){
+                element.setAttribute(key, settings[key]);
+            }else{
+                var attr = crel.attrMap[key];
+                if(typeof attr === 'function'){
+                    attr(element, settings[key]);
+                }else{
+                    element.setAttribute(attr, settings[key]);
+                }
+            }
+        }
+
+        return element;
+    }
+
+    // Used for mapping one kind of attribute to the supported version of that in bad browsers.
+    // String referenced so that compilers maintain the property name.
+    crel['attrMap'] = {};
+
+    // String referenced so that compilers maintain the property name.
+    crel["isNode"] = isNode;
+
+    return crel;
+}));
+
+},{}],23:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "concat";
 
@@ -3690,7 +3991,7 @@ Concat.prototype.clone = new Gaffa.Property();
 
 
 module.exports = Concat;
-},{"gaffa":40}],22:[function(require,module,exports){
+},{"gaffa":42}],24:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "conditional";
 
@@ -3711,7 +4012,7 @@ Conditional.prototype.trigger = function(parent, scope, event) {
 
 
 module.exports =  Conditional;
-},{"gaffa":40}],23:[function(require,module,exports){
+},{"gaffa":42}],25:[function(require,module,exports){
 var Gaffa = require('gaffa');
 
 function Container(){}
@@ -3725,7 +4026,7 @@ Container.prototype.render = function(){
 };
 
 module.exports = Container;
-},{"gaffa":40}],24:[function(require,module,exports){
+},{"gaffa":42}],26:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     doc = require('doc-js'),
     crel = require('crel');
@@ -3775,7 +4076,7 @@ Form.prototype.method = new Gaffa.Property({
 Form.prototype.valid = new Gaffa.Property();
 
 module.exports = Form;
-},{"crel":8,"doc-js":10,"gaffa":40}],25:[function(require,module,exports){
+},{"crel":8,"doc-js":10,"gaffa":42}],27:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -3805,7 +4106,7 @@ Heading.prototype.text = new Gaffa.Property(function(view, value){
 });
 
 module.exports = Heading;
-},{"crel":8,"gaffa":40}],26:[function(require,module,exports){
+},{"crel":8,"gaffa":42}],28:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -3830,7 +4131,7 @@ Html.prototype.html = new Gaffa.Property(function(viewModel, value){
 });
 
 module.exports = Html;
-},{"crel":8,"gaffa":40}],27:[function(require,module,exports){
+},{"crel":8,"gaffa":42}],29:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     crel = require('crel'),
 	cachedElement;
@@ -3869,7 +4170,7 @@ Image.prototype.image = new Gaffa.Property(function (viewModel, value) {
 });
 
 module.exports = Image;
-},{"crel":8,"gaffa":40}],28:[function(require,module,exports){
+},{"crel":8,"gaffa":42}],30:[function(require,module,exports){
 "use strict";
 
 var Gaffa = require('gaffa'),
@@ -3907,7 +4208,7 @@ Label.prototype.labelFor = new Gaffa.Property(function (viewModel, value) {
 });
 
 module.exports = Label;
-},{"crel":8,"gaffa":40}],29:[function(require,module,exports){
+},{"crel":8,"gaffa":42}],31:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     crel = require('crel'),
     TemplaterProperty = require('gaffa/templaterProperty');
@@ -3934,7 +4235,7 @@ List.prototype.list = new TemplaterProperty({
 });
 
 module.exports = List;
-},{"crel":8,"gaffa":40,"gaffa/templaterProperty":58}],30:[function(require,module,exports){
+},{"crel":8,"gaffa":42,"gaffa/templaterProperty":72}],32:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     behaviourType = 'modelChange';
 
@@ -3983,7 +4284,7 @@ ModelChangeBehaviour.prototype.watch = new Gaffa.Property({
 });
 
 module.exports = ModelChangeBehaviour;
-},{"gaffa":40}],31:[function(require,module,exports){
+},{"gaffa":42}],33:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "navigate";
 
@@ -4005,7 +4306,7 @@ Navigate.prototype.trigger = function() {
 }
 
 module.exports = Navigate;
-},{"gaffa":40}],32:[function(require,module,exports){
+},{"gaffa":42}],34:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     behaviourType = 'pageLoad';
 
@@ -4018,7 +4319,7 @@ PageLoadBehaviour.prototype.bind = function(){
 };
 
 module.exports = PageLoadBehaviour;
-},{"gaffa":40}],33:[function(require,module,exports){
+},{"gaffa":42}],35:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "push";
 
@@ -4053,7 +4354,7 @@ Push.prototype.clone = new Gaffa.Property({
 
 
 module.exports = Push;
-},{"gaffa":40}],34:[function(require,module,exports){
+},{"gaffa":42}],36:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "remove";
 
@@ -4070,7 +4371,7 @@ Remove.prototype.cleans = new Gaffa.Property();
 
 
 module.exports = Remove;
-},{"gaffa":40}],35:[function(require,module,exports){
+},{"gaffa":42}],37:[function(require,module,exports){
 var Gaffa = require('gaffa');
 
 function Set(){}
@@ -4094,7 +4395,7 @@ Set.prototype.cleans = new Gaffa.Property({
 });
 
 module.exports = Set;
-},{"gaffa":40}],36:[function(require,module,exports){
+},{"gaffa":42}],38:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     crel = require('crel'),
     viewType = "text";
@@ -4121,7 +4422,7 @@ Text.prototype.enabled = undefined;
 Text.prototype.classes = undefined;
 
 module.exports = Text;
-},{"crel":8,"gaffa":40}],37:[function(require,module,exports){
+},{"crel":8,"gaffa":42}],39:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     crel = require('crel'),
     doc = require('doc-js');
@@ -4209,7 +4510,7 @@ FormElement.prototype.validity = new Gaffa.Property(function(view, value){
 });
 
 module.exports = FormElement;
-},{"crel":8,"doc-js":10,"gaffa":40}],38:[function(require,module,exports){
+},{"crel":8,"doc-js":10,"gaffa":42}],40:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     FormElement = require('gaffa-formelement');
 
@@ -4230,7 +4531,7 @@ Textbox.prototype.maxLength = new Gaffa.Property(function(view, value){
 });
 
 module.exports = Textbox;
-},{"gaffa":40,"gaffa-formelement":37}],39:[function(require,module,exports){
+},{"gaffa":42,"gaffa-formelement":39}],41:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     actionType = "toggle";
 
@@ -4244,7 +4545,2143 @@ Toggle.prototype.trigger = function(){
 Toggle.prototype.target = new Gaffa.Property();
 
 module.exports = Toggle;
-},{"gaffa":40}],40:[function(require,module,exports){
+},{"gaffa":42}],42:[function(require,module,exports){
+//Copyright (C) 2012 Kory Nunn, Matt Ginty & Maurice Butler
+
+//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+///[README.md]
+
+"use strict";
+
+var Gedi = require('gedi'),
+    doc = require('doc-js'),
+    crel = require('crel'),
+    fastEach = require('fasteach'),
+    deepEqual = require('deep-equal'),
+    createSpec = require('spec-js'),
+    EventEmitter = require('events').EventEmitter,
+    animationFrame = require('./raf.js'),
+    laidout = require('laidout'),
+    merge = require('merge'),
+    statham = require('statham'),
+    requestAnimationFrame = animationFrame.requestAnimationFrame,
+    cancelAnimationFrame = animationFrame.cancelAnimationFrame;
+
+// Storage for applications default styles.
+var defaultViewStyles;
+
+function parseQueryString(url){
+    var urlParts = url.split('?'),
+        result = {};
+
+    if(urlParts.length>1){
+
+        var queryStringData = urlParts.pop().split("&");
+
+        for(var i = 0; i < queryStringData.length; i++) {
+            var parts = queryStringData[i].split("="),
+                key = window.unescape(parts[0]),
+                value = window.unescape(parts[1]);
+
+            result[key] = value;
+        }
+    }
+
+    return result;
+}
+
+
+function toQueryString(data){
+    var queryString = '';
+
+    for(var key in data){
+        if(data.hasOwnProperty(key) && data[key] !== undefined){
+            queryString += (queryString.length ? '&' : '?') + key + '=' + data[key];
+        }
+    }
+
+    return queryString;
+}
+
+
+function clone(value){
+    return statham.revive(value);
+}
+
+
+function tryParseJson(data){
+    try{
+        return JSON.parse(data);
+    }catch(error){
+        return error;
+    }
+}
+
+
+function ajax(settings){
+    var queryStringData,
+        request = new XMLHttpRequest();
+    if(typeof settings !== 'object'){
+        settings = {};
+    }
+
+    if(settings.cors){
+        //http://www.html5rocks.com/en/tutorials/cors/
+
+        if ("withCredentials" in request) {
+
+            // all good.
+
+        } else if (typeof XDomainRequest != "undefined") {
+
+            // Otherwise, check if XDomainRequest.
+            // XDomainRequest only exists in IE, and is IE's way of making CORS requests.
+            request = new XDomainRequest();
+        } else {
+
+            // Otherwise, CORS is not supported by the browser.
+            throw "Cors is not supported by this browser";
+        }
+    }else{
+        request = new XMLHttpRequest();
+    }
+
+    if(settings.cache === false){
+        settings.data = settings.data || {};
+        settings.data['_'] = new Date().getTime();
+    }
+
+    if(settings.type.toLowerCase() === 'get' && typeof settings.data === 'object'){
+        queryStringData = parseQueryString(settings.url);
+        for(var key in settings.data){
+            if(settings.data.hasOwnProperty(key)){
+                queryStringData[key] = settings.data[key];
+            }
+        }
+
+        settings.url  = settings.url.split('?').shift() + toQueryString(queryStringData);
+        settings.data = null;
+    }
+
+    request.addEventListener("progress", settings.progress, false);
+    request.addEventListener("load", function(event){
+        var data = event.target.responseText;
+
+        if(settings.dataType === 'json'){
+            if(data === ''){
+                data = undefined;
+            }else{
+                data = tryParseJson(data);
+            }
+        }
+
+        if(event.target.status >= 400){
+            settings.error && settings.error(event, data instanceof Error ? undefined : data);
+        }else{
+            if(data instanceof Error){
+                settings.error && settings.error(event, data);
+            }else{
+                settings.success && settings.success(data, event);
+            }
+        }
+
+    }, false);
+    request.addEventListener("error", settings.error, false);
+    request.addEventListener("abort", settings.abort, false);
+    request.addEventListener("loadend", settings.complete, false);
+
+    request.open(settings.type || "get", settings.url, true);
+
+    // Set default headers
+    if(settings.contentType !== false){
+        request.setRequestHeader('Content-Type', settings.contentType || 'application/json; charset=utf-8');
+    }
+    request.setRequestHeader('X-Requested-With', settings.requestedWith || 'XMLHttpRequest');
+    request.setRequestHeader('x-gaffa', 'request');
+    if(settings.auth){
+        request.setRequestHeader('Authorization', settings.auth);
+    }
+
+    // Set custom headers
+    for(var key in settings.headers){
+        request.setRequestHeader(key, settings.headers[key]);
+    }
+
+    if(settings.processData !== false && settings.dataType === 'json'){
+        settings.data = JSON.stringify(settings.data);
+    }
+
+    request.send(settings.data && settings.data);
+
+    return request;
+}
+
+
+function getClosestItem(target){
+    var viewModel = target.viewModel;
+
+    while(!viewModel && target){
+        target = target.parentNode;
+
+        if(target){
+            viewModel = target.viewModel;
+        }
+    }
+
+    return viewModel;
+}
+
+
+function langify(fn, context){
+    return function(scope, args){
+        var args = args.all();
+
+        return fn.apply(context, args);
+    }
+}
+
+
+function getDistinctGroups(gaffa, collection, expression){
+    var distinctValues = {},
+        values = gaffa.model.get('(map items ' + expression + ')', {items: collection});
+
+    if(collection && typeof collection === "object"){
+        if(Array.isArray(collection)){
+            for(var i = 0; i < values.length; i++) {
+                distinctValues[values[i]] = null;
+            }
+        }else{
+            throw "Object collections are not currently supported";
+        }
+    }
+
+    return Object.keys(distinctValues);
+}
+
+
+
+function triggerAction(action, parent, scope, event) {
+    Action.prototype.trigger.call(action, parent, scope, event);
+    action.trigger(parent, scope, event);
+}
+
+
+
+function triggerActions(actions, parent, scope, event) {
+    if(Array.isArray(actions)){
+        for(var i = 0; i < actions.length; i++) {
+            triggerAction(actions[i], parent, scope, event);
+        }
+    }
+}
+
+
+function insertFunction(selector, renderedElement, insertIndex){
+    var target = ((typeof selector === "string") ? document.querySelectorAll(selector)[0] : selector),
+        referenceSibling;
+
+    if(target && target.childNodes){
+        referenceSibling = target.childNodes[insertIndex];
+    }
+    if (referenceSibling){
+        target.insertBefore(renderedElement, referenceSibling);
+    }  else {
+        target.appendChild(renderedElement);
+    }
+}
+
+
+function getItemPath(item){
+    var gedi = item.gaffa.gedi,
+        paths = [],
+        referencePath,
+        referenceItem = item;
+
+    while(referenceItem){
+
+        // item.path should be a child ref after item.sourcePath
+        if(referenceItem.path != null){
+            paths.push(referenceItem.path);
+        }
+
+        // item.sourcePath is most root level path
+        if(referenceItem.sourcePath != null){
+            paths.push(gedi.paths.create(referenceItem.sourcePath));
+        }
+
+        referenceItem = referenceItem.parent;
+    }
+
+    return gedi.paths.resolve.apply(this, paths.reverse());
+}
+
+
+function addDefaultStyle(style){
+    defaultViewStyles = defaultViewStyles || (function(){
+        defaultViewStyles = crel('style', {type: 'text/css', 'class':'dropdownDefaultStyle'});
+
+        //Prepend so it can be overriden easily.
+        var addToHead = function(){
+            if(window.document.head){
+                window.document.head.insertBefore(defaultViewStyles);
+            }else{
+                setTimeout(addToHead, 100);
+            }
+        };
+
+        addToHead();
+
+        return defaultViewStyles;
+    })();
+
+    if (defaultViewStyles.styleSheet) {   // for IE
+        defaultViewStyles.styleSheet.cssText = style;
+    } else {                // others
+        defaultViewStyles.innerHTML += style;
+    }
+
+}
+
+
+function initialiseViewItem(viewItem, gaffa, specCollection, references) {
+    references = references || {
+        objects: [],
+        viewItems: []
+    };
+
+    // ToDo: Deprecate .type
+    var viewItemType = viewItem._type || viewItem.type;
+
+    if(!(viewItem instanceof ViewItem)){
+        if (!specCollection[viewItemType]) {
+            throw "No constructor is loaded to handle view of type " + viewItemType;
+        }
+
+        var referenceIndex = references.objects.indexOf(viewItem);
+        if(referenceIndex >= 0){
+            return references.viewItems[referenceIndex];
+        }
+
+        references.objects.push(viewItem);
+        viewItem = new specCollection[viewItemType](viewItem);
+        references.viewItems.push(viewItem);
+    }
+
+    for(var key in viewItem.views){
+        if(!(viewItem.views[key] instanceof ViewContainer)){
+            viewItem.views[key] = new ViewContainer(viewItem.views[key]);
+        }
+        var views = viewItem.views[key];
+        for (var viewIndex = 0; viewIndex < views.length; viewIndex++) {
+            var view = initialiseView(views[viewIndex], gaffa, references);
+            views[viewIndex] = view;
+            view.parentContainer = views;
+        }
+    }
+
+    for(var key in viewItem.actions){
+        var actions = viewItem.actions[key];
+        for (var actionIndex = 0; actionIndex < actions.length; actionIndex++) {
+            var action = initialiseAction(actions[actionIndex], gaffa, references);
+            actions[actionIndex] = action;
+            action.parentContainer = actions;
+        }
+    }
+
+    if(viewItem.behaviours){
+        for (var behaviourIndex = 0; behaviourIndex < viewItem.behaviours.length; behaviourIndex++) {
+            var behaviour = initialiseBehaviour(viewItem.behaviours[behaviourIndex], gaffa, references);
+            viewItem.behaviours[behaviourIndex] = behaviour;
+            behaviour.parentContainer = viewItem.behaviours;
+        }
+    }
+
+    return viewItem;
+}
+
+
+function initialiseView(viewItem, gaffa, references) {
+    return initialiseViewItem(viewItem, gaffa, gaffa.views._constructors, references);
+}
+
+
+function initialiseAction(viewItem, gaffa, references) {
+    return initialiseViewItem(viewItem, gaffa, gaffa.actions._constructors, references);
+}
+
+
+function initialiseBehaviour(viewItem, gaffa, references) {
+    return initialiseViewItem(viewItem, gaffa, gaffa.behaviours._constructors, references);
+}
+
+
+function removeViews(views){
+    if(!views){
+        return;
+    }
+
+    views = views instanceof Array ? views : [views];
+
+    views = views.slice();
+
+    for(var i = 0; i < views.length; i++) {
+        views[i].remove();
+    }
+}
+
+
+function jsonConverter(object, exclude, include){
+    var plainInstance = new object.constructor(),
+        tempObject = Array.isArray(object) || object instanceof Array && [] || {},
+        excludeProps = ["gaffa", "parent", "parentContainer", "renderedElement", "_removeHandlers", "gediCallbacks", "__super__", "_events"],
+        includeProps = ["type", "_type"];
+
+    //console.log(object.constructor.name);
+
+    if(exclude){
+        excludeProps = excludeProps.concat(exclude);
+    }
+
+    if(include){
+        includeProps = includeProps.concat(include);
+    }
+
+    for(var key in object){
+        if(
+            includeProps.indexOf(key)>=0 ||
+            object.hasOwnProperty(key) &&
+            excludeProps.indexOf(key)<0 &&
+            !deepEqual(plainInstance[key], object[key])
+        ){
+            tempObject[key] = object[key];
+        }
+    }
+
+    if(!Object.keys(tempObject).length){
+        return;
+    }
+
+    return tempObject;
+}
+
+
+function createModelScope(parent, gediEvent){
+    var possibleGroup = parent,
+        groupKey;
+
+    while(possibleGroup && !groupKey){
+        groupKey = possibleGroup.group;
+        possibleGroup = possibleGroup.parent;
+    }
+
+    return {
+        viewItem: parent,
+        groupKey: groupKey,
+        modelTarget: gediEvent && gediEvent.target
+    };
+}
+
+
+function updateProperty(property, firstUpdate){
+    // Update immediately, reduces reflows,
+    // as things like classes are added before
+    //  the element is inserted into the DOM
+    if(firstUpdate){
+        property.update(property.parent, property.value);
+    }
+
+    // Still run the sameAsPrevious function,
+    // because it sets up the last value hash,
+    // and it will be false anyway.
+    if(!property.sameAsPrevious() && !property.nextUpdate){
+        if(property.gaffa.debug){
+            property.update(property.parent, property.value);
+            return;
+        }
+        property.nextUpdate = requestAnimationFrame(function(){
+            property.update(property.parent, property.value);
+            property.nextUpdate = null;
+        });
+    }
+}
+
+
+function createPropertyCallback(property){
+    return function (event) {
+        var value,
+            scope,
+            valueTokens;
+
+        if(event){
+
+            scope = createModelScope(property.parent, event);
+
+            if(event === true){ // Initial update.
+
+                valueTokens = property.get(scope, true);
+
+            }else if(event.captureType === 'bubble' && property.ignoreBubbledEvents){
+
+                return;
+
+            }else if(property.binding){ // Model change update.
+
+                if(property.ignoreTargets && event.target.toString().match(property.ignoreTargets)){
+                    return;
+                }
+
+                valueTokens = property.get(scope, true);
+            }
+
+            if(valueTokens){
+                var valueToken = valueTokens[valueTokens.length - 1];
+                value = valueToken.result;
+                property._sourcePathInfo = valueToken.sourcePathInfo;
+            }
+
+            property.value = value;
+        }
+
+        // Call the properties update function, if it has one.
+        // Only call if the changed value is an object, or if it actually changed.
+        if(!property.update){
+            return;
+        }
+
+        updateProperty(property, event === true);
+    }
+}
+
+
+function bindProperty(parent) {
+    this.parent = parent;
+
+    parent.on('debind', this.debind.bind(this));
+
+    // Shortcut for properties that have no binding.
+    // This has a significant impact on performance.
+    if(this.binding == null){
+        if(this.update){
+            this.update(parent, this.value);
+        }
+        return;
+    }
+
+    var propertyCallback = createPropertyCallback(this);
+
+    this.gaffa.model.bind(this.binding, propertyCallback, this);
+    propertyCallback(true);
+}
+
+
+//Public Objects ******************************************************************************
+
+function createValueHash(value){
+    if(value && typeof value === 'object'){
+        return Object.keys(value);
+    }
+
+    return value;
+}
+
+
+function compareToHash(value, hash){
+    if(value && hash && typeof value === 'object' && typeof hash === 'object'){
+        var keys = Object.keys(value);
+        if(keys.length !== hash.length){
+            return;
+        }
+        for (var i = 0; i < hash.length; i++) {
+            if(hash[i] !== keys[i]){
+                return;
+            }
+        };
+        return true;
+    }
+
+    return value === hash;
+}
+
+
+function Property(propertyDescription){
+    if(typeof propertyDescription === 'function'){
+        this.update = propertyDescription;
+    }else{
+        for(var key in propertyDescription){
+            this[key] = propertyDescription[key];
+        }
+    }
+
+    this.gediCallbacks = [];
+}
+Property = createSpec(Property);
+Property.prototype.set = function(value, isDirty){
+    var gaffa = this.gaffa;
+
+    if(this.binding){
+        var setValue = this.setTransform ? gaffa.model.get(this.setTransform, this, {value: value}) : value;
+        gaffa.model.set(
+            this.binding,
+            setValue,
+            this,
+            isDirty
+        );
+    }else{
+        this.value = value;
+        this._previousHash = createValueHash(value);
+        if(this.update){
+            this.update(this.parent, value);
+        }
+    }
+
+};
+Property.prototype.get = function(scope, asTokens){
+    if(this.binding){
+        var value = this.gaffa.model.get(this.binding, this, scope, asTokens);
+        if(this.getTransform){
+            scope.value = asTokens ? value[value.length-1].result : value;
+            return this.gaffa.model.get(this.getTransform, this, scope, asTokens);
+        }
+        return value;
+    }else{
+        return this.value;
+    }
+};
+Property.prototype.sameAsPrevious = function () {
+    if(compareToHash(this.value, this._previousHash)){
+        return true;
+    }
+    this._previousHash = createValueHash(this.value);
+};
+Property.prototype.setPreviousHash = function(hash){
+    this._previousHash = hash;
+};
+Property.prototype.getPreviousHash = function(hash){
+    return this._previousHash;
+};
+Property.prototype.bind = bindProperty;
+Property.prototype.debind = function(){
+    cancelAnimationFrame(this.nextUpdate);
+    this.gaffa && this.gaffa.model.debind(this);
+};
+Property.prototype.getPath = function(){
+    return getItemPath(this);
+};
+Property.prototype.toJSON = function(){
+    var tempObject = jsonConverter(this, ['_previousHash']);
+
+    return tempObject;
+};
+
+
+function ViewContainer(viewContainerDescription){
+    var viewContainer = this;
+
+    this._deferredViews = [];
+
+    if(viewContainerDescription instanceof Array){
+        viewContainer.add(viewContainerDescription);
+    }
+}
+ViewContainer = createSpec(ViewContainer, Array);
+ViewContainer.prototype.bind = function(parent){
+    this.parent = parent;
+    this.gaffa = parent.gaffa;
+
+    parent.on('debind', this.debind.bind(this));
+
+    if(this._bound){
+        return;
+    }
+
+    this._bound = true;
+
+    for(var i = 0; i < this.length; i++){
+        this.add(this[i], i);
+    }
+
+    return this;
+};
+ViewContainer.prototype.debind = function(){
+    if(!this._bound){
+        return;
+    }
+
+    this._bound = false;
+
+    for (var i = 0; i < this.length; i++) {
+        this[i].detach();
+        this[i].debind();
+    }
+};
+ViewContainer.prototype.getPath = function(){
+    return getItemPath(this);
+};
+
+/*
+    ViewContainers handle their own array state.
+    A View that is added to a ViewContainer will
+    be automatically removed from its current
+    container, if it has one.
+*/
+ViewContainer.prototype.add = function(view, insertIndex){
+    // If passed an array
+    if(Array.isArray(view)){
+        for(var i = 0; i < view.length; i++){
+            this.add(view[i]);
+        }
+        return this;
+    }
+
+    // Is already in the tree somewhere? remove it.
+    if(view.parentContainer){
+        view.parentContainer.splice(view.parentContainer.indexOf(view),1);
+    }
+
+    this.splice(insertIndex >= 0 ? insertIndex : this.length,0,view);
+
+    view.parentContainer = this;
+
+    if(this._bound){
+        if(!(view instanceof View)){
+            view = this[this.indexOf(view)] = initialiseViewItem(view, this.gaffa, this.gaffa.views._constructors);
+        }
+        view.gaffa = this.gaffa;
+
+        this.gaffa.namedViews[view.name] = view;
+
+        if(!view.renderedElement){
+            view.render();
+            view.renderedElement.viewModel = view;
+        }
+        view.bind(this.parent);
+        view.insert(this, insertIndex);
+    }
+
+
+    return this;
+};
+
+/*
+    adds 5 (5 is arbitrary) views at a time to the target viewContainer,
+    then queues up another add.
+*/
+function executeDeferredAdd(viewContainer){
+    var currentOpperation = viewContainer._deferredViews.splice(0,5);
+
+    if(!currentOpperation.length){
+        return;
+    }
+
+    for (var i = 0; i < currentOpperation.length; i++) {
+        viewContainer.add(currentOpperation[i][0], currentOpperation[i][1]);
+    };
+    requestAnimationFrame(function(time){
+        executeDeferredAdd(viewContainer);
+    });
+}
+
+/*
+    Adds children to the view container over time, via RAF.
+    Will only begin the render cycle if there are no _deferredViews,
+    because if _deferredViews.length is > 0, the render loop will
+    already be going.
+*/
+ViewContainer.prototype.deferredAdd = function(view, insertIndex){
+    var viewContainer = this,
+        shouldStart = !this._deferredViews.length;
+
+    this._deferredViews.push([view, insertIndex]);
+
+    if(shouldStart){
+        requestAnimationFrame(function(){
+            executeDeferredAdd(viewContainer);
+        });
+    }
+};
+
+ViewContainer.prototype.abortDeferredAdd = function(){
+    this._deferredViews = [];
+};
+ViewContainer.prototype.remove = function(viewModel){
+    viewModel.remove();
+};
+ViewContainer.prototype.empty = function(){
+    removeViews(this);
+};
+ViewContainer.prototype.toJSON = function(){
+    return jsonConverter(this, ['element']);
+};
+
+
+function copyProperties(source, target){
+    if(
+        !source || typeof source !== 'object' ||
+        !target || typeof target !== 'object'
+    ){
+        return;
+    }
+
+    for(var key in source){
+        if(source.hasOwnProperty(key)){
+            target[key] = source[key];
+        }
+    }
+}
+
+
+function debindViewItem(viewItem){
+    viewItem.emit('debind');
+    viewItem._bound = false;
+}
+
+
+function removeViewItem(viewItem){
+    if(!viewItem.parentContainer){
+        return;
+    }
+
+    if(viewItem.parentContainer){
+        viewItem.parentContainer.splice(viewItem.parentContainer.indexOf(viewItem), 1);
+        viewItem.parentContainer = null;
+    }
+
+    viewItem.debind();
+
+    viewItem.emit('remove');
+}
+
+
+/**
+    ## ViewItem
+
+    The base constructor for all gaffa ViewItems.
+
+    Views, Behaviours, and Actions inherrit from ViewItem.
+*/
+function ViewItem(viewItemDescription){
+
+    for(var key in this){
+        if(this[key] instanceof Property){
+            this[key] = new this[key].constructor(this[key]);
+        }
+    }
+
+    /**
+        ## .actions
+
+        All ViewItems have an actions object which can be overriden.
+
+        The actions object looks like this:
+
+            viewItem.actions = {
+                click: [action1, action2],
+                hover: [action3, action4]
+            }
+
+        eg:
+
+            // Some ViewItems
+            var someButton = new views.button(),
+                removeItem = new actions.remove();
+
+            // Set removeItem as a child of someButton.
+            someButton.actions.click = [removeItem];
+
+        If a Views action.[name] matches a DOM event name, it will be automatically _bound.
+
+            myView.actions.click = [
+                // actions to trigger when a 'click' event is raised by the views renderedElement
+            ];
+    */
+    this.actions = this.actions ? clone(this.actions) : {};
+
+    for(var key in viewItemDescription){
+        var prop = this[key];
+        if(prop instanceof Property || prop instanceof ViewContainer){
+            copyProperties(viewItemDescription[key], prop);
+        }else{
+            this[key] = viewItemDescription[key];
+        }
+    }
+}
+ViewItem = createSpec(ViewItem, EventEmitter);
+
+    /**
+        ## .path
+
+        the base path for a viewItem.
+
+        Any bindings on a ViewItem will recursivly resolve through the ViewItems parent's paths.
+
+        Eg:
+
+            // Some ViewItems
+            var viewItem1 = new views.button(),
+                viewItem2 = new actions.set();
+
+            // Give viewItem1 a path.
+            viewItem1.path = '[things]';
+            // Set viewItem2 as a child of viewItem1.
+            viewItem1.actions.click = [viewItem2];
+
+            // Give viewItem2 a path.
+            viewItem2.path = '[stuff]';
+            // Set viewItem2s target binding.
+            viewItem2.target.binding = '[majigger]';
+
+        viewItem2.target.binding will resolve to:
+
+            '[/things/stuff/majigger]'
+    */
+ViewItem.prototype.path = '[]';
+ViewItem.prototype.bind = function(parent){
+    var viewItem = this,
+        property;
+
+    this.parent = parent;
+
+    this._bound = true;
+
+    // Only set up properties that were on the prototype.
+    // Faster and 'safer'
+    for(var propertyKey in this.constructor.prototype){
+        property = this[propertyKey];
+        if(property instanceof Property){
+            property.gaffa = viewItem.gaffa;
+            property.bind(this);
+        }
+    }
+};
+ViewItem.prototype.debind = function(){
+    debindViewItem(this);
+};
+ViewItem.prototype.remove = function(){
+    removeViewItem(this);
+};
+ViewItem.prototype.getPath = function(){
+    return getItemPath(this);
+};
+ViewItem.prototype.getDataAtPath = function(){
+    if(!this.gaffa){
+        return;
+    }
+    return this.gaffa.model.get(getItemPath(this));
+};
+ViewItem.prototype.toJSON = function(){
+    return jsonConverter(this);
+};
+ViewItem.prototype.triggerActions = function(actionName, scope, event){
+    if(!this.gaffa){
+        return;
+    }
+    this.gaffa.actions.trigger(this.actions[actionName], this, scope, event);
+};
+
+
+function createEventedActionScope(view, event){
+    var scope = createModelScope(view);
+
+    scope.event = {
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        which: event.which,
+        target: event.target,
+        targetViewItem: getClosestItem(event.target),
+        preventDefault: langify(event.preventDefault, event),
+        stopPropagation: langify(event.stopPropagation, event)
+    };
+
+    return scope;
+}
+
+
+function bindViewEvent(view, eventName){
+    return view.gaffa.events.on(eventName, view.renderedElement, function (event) {
+        triggerActions(view.actions[eventName], view, createEventedActionScope(view, event), event);
+    });
+}
+
+
+/**
+    ## View
+
+    A base constructor for gaffa Views that have content view.
+
+    All Views that inherit from ContainerView will have:
+
+        someView.views.content
+*/
+function View(viewDescription){
+    var view = this;
+
+    view._removeHandlers = [];
+    view.behaviours = view.behaviours || [];
+}
+View = createSpec(View, ViewItem);
+
+View.prototype.bind = function(parent){
+    ViewItem.prototype.bind.apply(this, arguments);
+
+    for(var key in this.actions){
+        var actions = this.actions[key],
+            off;
+
+        if(actions.__bound){
+            continue;
+        }
+
+        actions.__bound = true;
+
+        off = bindViewEvent(this, key);
+
+        if(off){
+            this._removeHandlers.push(off);
+        }
+    }
+
+    this.triggerActions('load');
+
+    for(var i = 0; i < this.behaviours.length; i++){
+        this.behaviours[i].gaffa = this.gaffa;
+        Behaviour.prototype.bind.call(this.behaviours[i], this);
+        this.behaviours[i].bind(this);
+    }
+};
+
+View.prototype.detach = function(){
+    this.renderedElement && this.renderedElement.parentNode && this.renderedElement.parentNode.removeChild(this.renderedElement);
+};
+
+View.prototype.remove = function(){
+    this.detach();
+    removeViewItem(this);
+}
+
+View.prototype.debind = function () {
+    for(var i = 0; i < this.behaviours.length; i++){
+        this.behaviours[i].debind();
+    }
+
+    this.triggerActions('unload');
+
+    while(this._removeHandlers.length){
+        this._removeHandlers.pop()();
+    }
+    for(var key in this.actions){
+        this.actions[key].__bound = false;
+    }
+
+    debindViewItem(this);
+};
+
+View.prototype.render = function(){};
+
+function insert(view, viewContainer, insertIndex){
+    var gaffa = view.gaffa,
+        renderTarget = view.insertSelector || view.renderTarget || viewContainer && viewContainer.element || gaffa.views.renderTarget;
+
+    if(view.afterInsert){
+        laidout(view.renderedElement, function(){
+            view.afterInsert();
+        });
+    }
+
+    if(viewContainer.indexOf(view) !== insertIndex){
+        viewContainer.splice(insertIndex, 1, view);
+    }
+
+    view.insertFunction(view.insertSelector || renderTarget, view.renderedElement, insertIndex);
+}
+
+View.prototype.insert = function(viewContainer, insertIndex){
+    insert(this, viewContainer, insertIndex);
+};
+
+function Classes(){};
+Classes = createSpec(Classes, Property);
+Classes.prototype.update = function(view, value){
+    doc.removeClass(view.renderedElement, this._previousClasses);
+    this._previousClasses = value;
+    doc.addClass(view.renderedElement, value);
+};
+View.prototype.classes = new Classes();
+
+function Visible(){};
+Visible = createSpec(Visible, Property);
+Visible.prototype.value = true;
+Visible.prototype.update = function(view, value) {
+    view.renderedElement.style.display = value ? '' : 'none';
+};
+View.prototype.visible = new Visible();
+
+function Enabled(){};
+Enabled = createSpec(Enabled, Property);
+Enabled.prototype.value = true;
+Enabled.prototype.update = function(view, value) {
+    if(!value === !!view.renderedElement.getAttribute('disabled')){
+        return;
+    }
+    view.renderedElement[!value ? 'setAttribute' : 'removeAttribute']('disabled','disabled');
+};
+View.prototype.enabled = new Enabled();
+
+function Title(){};
+Title = createSpec(Title, Property);
+Title.prototype.update = function(view, value) {
+    view.renderedElement[value ? 'setAttribute' : 'removeAttribute']('title',value);
+};
+View.prototype.title = new Title();
+
+View.prototype.insertFunction = insertFunction;
+
+
+/**
+    ## ContainerView
+
+    A base constructor for gaffa Views that can hold child views.
+
+    All Views that inherit from ContainerView will have:
+
+        someView.views.content
+*/
+function ContainerView(viewDescription){
+    this.views = this.views || {};
+    this.views.content = new ViewContainer(this.views.content);
+}
+ContainerView = createSpec(ContainerView, View);
+ContainerView.prototype.bind = function(parent){
+    View.prototype.bind.apply(this, arguments);
+    for(var key in this.views){
+        var viewContainer = this.views[key];
+
+        if(viewContainer instanceof ViewContainer){
+            viewContainer.bind(this);
+        }
+    }
+};
+ContainerView.prototype.debind = function(){
+    View.prototype.debind.apply(this, arguments);
+};
+
+
+function Action(actionDescription){
+}
+Action = createSpec(Action, ViewItem);
+Action.prototype.bind = function(){
+    ViewItem.prototype.bind.call(this);
+};
+Action.prototype.trigger = function(parent, scope, event){
+    this.parent = parent;
+
+    scope = scope || {};
+
+    var gaffa = this.gaffa = parent.gaffa;
+
+
+    for(var propertyKey in this.constructor.prototype){
+        var property = this[propertyKey];
+
+        if(property instanceof Property && property.binding){
+            property.gaffa = gaffa;
+            property.parent = this;
+            property.value = property.get(scope);
+        }
+    }
+
+    this.debind();
+};
+
+
+function Behaviour(behaviourDescription){}
+Behaviour = createSpec(Behaviour, ViewItem);
+Behaviour.prototype.toJSON = function(){
+    return jsonConverter(this);
+};
+
+
+function Gaffa(){
+
+
+    var gedi,
+        gaffa = Object.create(EventEmitter.prototype);
+
+
+    // internal varaibles
+
+        // Storage for the applications model.
+    var internalModel = {},
+
+        // Storage for the applications view.
+        internalViewItems = [],
+
+        // Storage for application actions.
+        internalActions = {},
+
+        // Storage for application behaviours.
+        internalBehaviours = [],
+
+        // Storage for interval based behaviours.
+        internalIntervals = [];
+
+
+    // Gedi initialisation
+    gedi = new Gedi(internalModel);
+
+    // Add gedi instance to gaffa.
+    gaffa.gedi = gedi;
+
+
+    function addBehaviour(behaviour) {
+        //if the views isnt an array, make it one.
+        if (Array.isArray(behaviour)) {
+            for(var i = 0; i < behaviour.length; i++) {
+                addBehaviour(behaviour[i]);
+            }
+            return;
+        }
+
+        behaviour.gaffa = gaffa;
+        behaviour.parentContainer = internalBehaviours;
+
+        Behaviour.prototype.bind.call(behaviour);
+        behaviour.bind();
+
+        internalBehaviours.push(behaviour);
+    }
+
+
+    function load(app, target){
+
+        app = statham.revive(app);
+
+        var targetView = gaffa.views;
+
+        if(target){
+            var targetParts = target.split('.'),
+                targetName = targetParts[0],
+                targetViewContainer = targetParts[1];
+
+            targetView = gaffa.namedViews[targetName].views[targetViewContainer];
+        }
+
+        while(internalIntervals.length){
+            clearInterval(internalIntervals.pop());
+        }
+
+        //clear state first
+        if (app.views) {
+            targetView.empty();
+        }
+
+        //set up state
+        if (app.model) {
+            gedi.set({});
+            gaffa.model.set(app.model, null, null, false);
+        }
+        if (app.views) {
+            for(var i = 0; i < app.views.length; i++) {
+                app.views[i] = initialiseView(app.views[i], gaffa);
+            }
+            targetView.add(app.views);
+        }
+        if (app.behaviours) {
+            for(var i = 0; i < app.behaviours.length; i++) {
+                app.behaviours[i] = initialiseBehaviour(app.behaviours[i], gaffa);
+            }
+            gaffa.behaviours.add(app.behaviours);
+        }
+
+        gaffa.emit("load");
+    }
+
+
+    var pageCache = {};
+
+    function navigate(url, target, pushState, data) {
+
+        // Data will be passed to the route as a querystring
+        // but will not be displayed visually in the address bar.
+        // This is to help resolve caching issues.
+
+        // default target
+        if(target === undefined){
+            target = gaffa.navigateTarget;
+        }
+
+        function success (data) {
+            var title;
+
+            data.target = target;
+
+            if(data !== undefined && data !== null && data.title){
+                title = data.title;
+            }
+
+            // Always use pushstate unless triggered by onpopstate
+            if(pushState !== false) {
+                gaffa.pushState(data, title, url);
+            }
+
+            pageCache[url] = data;
+
+            gaffa.load(data, target);
+
+            gaffa.emit("navigate.success");
+
+            window.scrollTo(0,0);
+        }
+
+        function error(error){
+            gaffa.emit("navigate.error", error);
+        }
+
+        function complete(){
+            gaffa.emit("navigate.complete");
+        }
+
+        gaffa.emit("navigate");
+
+        if(gaffa.cacheNavigates !== false && pageCache[url]){
+            success(pageCache[url]);
+            complete();
+            return;
+        }
+
+        gaffa.ajax({
+            url: gaffa.createNavigateUrl(url),
+            type: "get",
+            data: data,
+            dataType: "json",
+            success: success,
+            error: error,
+            complete: complete
+        });
+    }
+
+    gaffa.createNavigateUrl = function(url){
+        return url;
+    };
+
+    gaffa.onpopstate = function(event){
+        if(event.state){
+            navigate(window.location.toString(), event.state.target, false);
+        }
+    };
+
+    // Overridable handler
+    window.onpopstate = gaffa.onpopstate;
+
+    function addDefaultsToScope(scope){
+        scope.windowLocation = window.location.toString();
+    }
+
+
+/**
+    ## The gaffa instance
+
+    Instance of Gaffa
+
+        var gaffa = new Gaffa();
+*/
+
+    var gaffaPublicObject = {
+
+        /**
+            ### .addDefaultStyle
+
+            used to add default syling for a view to the application, eg:
+
+                MyView.prototype.render = function(){
+                    //render code...
+
+                    gaffa.addDefaultStyle(css);
+
+                };
+
+            Gaffa encourages style-free Views, however sometimes views require minimal css to add functionality.
+
+            addDefaultStyle allows encaptulation of css within the View's .js file, and allows the style to be easily overriden.
+        */
+        addDefaultStyle: addDefaultStyle,
+
+        /**
+            ### .createSpec
+
+                function myConstructor(){}
+                myConstructor = gaffa.createSpec(myConstructor, inheritedConstructor);
+
+            npm module: [spec-js](https://npmjs.org/package/spec-js)
+        */
+        createSpec: createSpec,
+
+        /**
+            ### .jsonConverter
+
+            default jsonification for ViewItems
+        */
+        jsonConverter: jsonConverter,
+
+        /**
+            ### .initialiseViewItem
+
+            takes the plain old object representation of a viewItem and returns an instance of ViewItem with all the settings applied.
+
+            Also recurses through the ViewItem's tree and inflates children.
+        */
+        initialiseViewItem: function(viewItem, specCollection, references){
+            return initialiseViewItem(viewItem, this, specCollection, references);
+        },
+
+        initialiseView: function(view, references){
+            return initialiseView(view, this, references);
+        },
+
+        initialiseAction: function(action, references){
+            return initialiseAction(action, this, references);
+        },
+
+        initialiseBehaviour: function(behaviour, references){
+            return initialiseBehaviour(behaviour, this, references);
+        },
+
+        /**
+            ### .initialiseViewItem
+
+            takes the plain old object representation of a viewItem and returns an instance of ViewItem with all the settings applied.
+
+            Also recurses through the ViewItem's tree and inflates children.
+        */
+        registerConstructor: function(constructor){
+            if(Array.isArray(constructor)){
+                for(var i = 0; i < constructor.length; i++){
+                    gaffa.registerConstructor(constructor[i]);
+                }
+            }
+
+            var constructorType = constructor.prototype instanceof View && 'views' ||
+                constructor.prototype instanceof Action && 'actions' ||
+                constructor.prototype instanceof Behaviour && 'behaviours';
+
+            if(constructorType){
+                // ToDo: Deprecate .type
+                gaffa[constructorType]._constructors[constructor.prototype._type || constructor.prototype.type] = constructor;
+            }else{
+                throw "The provided constructor was not an instance of a View, Action, or Behaviour";
+            }
+        },
+
+        /**
+            ### .events
+
+            used throughout gaffa for binding DOM events.
+        */
+        events:{
+
+            /**
+                ### .on
+
+                usage:
+
+                    gaffa.events.on('eventname', target, callback);
+            */
+            on: function(eventName, target, callback){
+                if('on' + eventName.toLowerCase() in target){
+                    return doc.on(eventName, target, callback);
+                }
+            }
+        },
+
+        /**
+            ## .model
+
+            access to the applications model
+        */
+        model: {
+
+            /**
+                ### .get(path, viewItem, scope, asTokens)
+
+                used to get data from the model.
+                path is relative to the viewItems path.
+
+                    gaffa.model.get('[someProp]', parentViewItem);
+            */
+            get:function(path, viewItem, scope, asTokens) {
+                if(!(viewItem instanceof ViewItem || viewItem instanceof Property)){
+                    scope = viewItem;
+                    viewItem = undefined;
+                }
+
+                var parentPath;
+                if(viewItem && viewItem.getPath){
+                    parentPath = viewItem.getPath();
+                }
+
+                scope = scope || {};
+
+                addDefaultsToScope(scope);
+                return gedi.get(path, parentPath, scope, asTokens);
+            },
+
+            /**
+                ### .set(path, value, viewItem, dirty)
+
+                used to set data into the model.
+                path is relative to the viewItems path.
+
+                    gaffa.model.set('[someProp]', 'hello', parentViewItem);
+            */
+            set:function(path, value, viewItem, dirty) {
+                var parentPath;
+
+                if(path == null){
+                    return;
+                }
+
+                if(viewItem && viewItem.getPath){
+                    parentPath = viewItem.getPath();
+                }
+
+                gedi.set(path, value, parentPath, dirty);
+            },
+
+            /**
+                ### .remove(path, viewItem, dirty)
+
+                used to remove data from the model.
+                path is relative to the viewItems path.
+
+                    gaffa.model.remove('[someProp]', parentViewItem);
+            */
+            remove: function(path, viewItem, dirty) {
+                var parentPath;
+
+                if(path == null){
+                    return;
+                }
+
+                if(viewItem && viewItem.getPath){
+                    parentPath = viewItem.getPath();
+                }
+
+                gedi.remove(path, parentPath, dirty);
+            },
+
+            /**
+                ### .bind(path, callback, viewItem)
+
+                used to bind callbacks to changes in the model.
+                path is relative to the viewItems path.
+
+                    gaffa.model.bind('[someProp]', function(){
+                        //do something when '[someProp]' changes.
+                    }, viewItem);
+            */
+            bind: function(path, callback, viewItem) {
+                var parentPath;
+
+                if(viewItem && viewItem.getPath){
+                    parentPath = viewItem.getPath();
+                }
+
+                if(!viewItem.gediCallbacks){
+                    viewItem.gediCallbacks = [];
+                }
+
+                // Add the callback to the list of handlers associated with the viewItem
+                viewItem.gediCallbacks.push(function(){
+                    gedi.debind(callback);
+                });
+
+                gedi.bind(path, callback, parentPath);
+            },
+
+            /**
+                ### .debind(viewItem)
+
+                remove all callbacks assigned to a viewItem.
+
+                    gaffa.model.debind('[someProp]', function(){
+                        //do something when '[someProp]' changes.
+                    });
+            */
+            debind: function(viewItem) {
+                while(viewItem.gediCallbacks && viewItem.gediCallbacks.length){
+                    viewItem.gediCallbacks.pop()();
+                }
+            },
+
+            /**
+                ### .isDirty(path, viewItem)
+
+                check if a part of the model is dirty.
+                path is relative to the viewItems path.
+
+                    gaffa.model.isDirty('[someProp]', viewItem); // true/false?
+            */
+            isDirty: function(path, viewItem) {
+                var parentPath;
+
+                if(path == null){
+                    return;
+                }
+
+                if(viewItem && viewItem.getPath){
+                    parentPath = viewItem.getPath();
+                }
+
+                return gedi.isDirty(path, parentPath);
+            },
+
+            /**
+                ### .setDirtyState(path, value, viewItem)
+
+                set a part of the model to be dirty or not.
+                path is relative to the viewItems path.
+
+                    gaffa.model.setDirtyState('[someProp]', true, viewItem);
+            */
+            setDirtyState: function(path, value, viewItem) {
+                var parentPath;
+
+                if(path == null){
+                    return;
+                }
+
+                if(viewItem && viewItem.getPath){
+                    parentPath = viewItem.getPath();
+                }
+
+                gedi.setDirtyState(path, value, parentPath);
+            }
+        },
+
+        /**
+            ## .views
+
+                gaffa.views //Object.
+
+            contains functions and properties for manipulating the application's views.
+        */
+        views: {
+
+            /**
+                ### .renderTarget
+
+                Overrideable DOM selector that top level view items will be inserted into.
+
+                    gaffa.views.renderTarget = 'body';
+            */
+            renderTarget: 'body',
+
+            /**
+                ### .add(View/viewModel, insertIndex)
+
+                Add a view or views to the root list of viewModels.
+                When a view is added, it will be rendered _bound, and inserted into the DOM.
+
+                    gaffa.views.add(myView);
+
+                Or:
+
+                    gaffa.views.add([
+                        myView1,
+                        myView1,
+                        myView1
+                    ]);
+            */
+            add: function(view, insertIndex){
+                if(Array.isArray(view)){
+                    for(var i = 0; i < view.length; i++) {
+                        gaffa.views.add(view[i]);
+                    }
+                    return;
+                }
+
+                if(view.name){
+                    gaffa.namedViews[view.name] = view;
+                }
+
+                view.gaffa = gaffa;
+                view.parentContainer = internalViewItems;
+                view.render();
+                view.renderedElement.viewModel = view;
+                view.bind();
+                view.insert(internalViewItems, insertIndex);
+            },
+
+            /**
+                ### .remove(view/views)
+
+                Remove a view or views from anywhere in the application.
+
+                    gaffa.views.remove(myView);
+            */
+            remove: removeViews,
+
+            /**
+                ### .empty()
+
+                empty the application of all views.
+
+                    gaffa.views.empty();
+            */
+            empty: function(){
+                removeViews(internalViewItems);
+            },
+
+            _constructors: {}
+        },
+
+        /**
+            ### .namedViews
+
+            Storage for named views.
+            Any views with a .name property will be put here, with the name as the key.
+
+            This is used for navigation, where you can specify a view to navigate into.
+
+            See gaffa.navitate();
+        */
+        namedViews: {},
+
+        /**
+            ## .actions
+
+                gaffa.actions //Object.
+
+            contains functions and properties for manipulating the application's actions.
+        */
+        actions: {
+
+            /**
+                ### .trigger(actions, parent, scope, event)
+
+                trigger a gaffa action where:
+
+                 - actions is an array of actions to trigger.
+                 - parent is an instance of ViewItem that the action is on.
+                 - scope is an arbitrary object to be passed in as scope to all expressions in the action
+                 - event is an arbitrary event object that may have triggered the action, such as a DOM event.
+            */
+            trigger: triggerActions,
+
+            _constructors: {}
+        },
+
+        /**
+            ## .behaviours
+
+                gaffa.behaviours //Object.
+
+            contains functions and properties for manipulating the application's behaviours.
+        */
+        behaviours: {
+
+            /**
+                ### .add(behaviour)
+
+                add a behaviour to the root of the appliaction
+
+                    gaffa.behaviours.add(someBehaviour);
+            */
+            add: addBehaviour,
+
+            _constructors: {}
+        },
+
+        utils: {
+            //See if a property exists on an object without doing if(obj && obj.prop && obj.prop.prop) etc...
+            getProp: function (object, propertiesString) {
+                var properties = propertiesString.split(Gaffa.pathSeparator).reverse();
+                while (properties.length) {
+                    var nextProp = properties.pop();
+                    if (object[nextProp] !== undefined && object[nextProp] !== null) {
+                        object = object[nextProp];
+                    } else {
+                        return;
+                    }
+                }
+                return object;
+            },
+            //See if a property exists on an object without doing if(obj && obj.prop && obj.prop.prop) etc...
+            propExists: function (object, propertiesString) {
+                var properties = propertiesString.split(".").reverse();
+                while (properties.length) {
+                    var nextProp = properties.pop();
+                    if (object[nextProp] !== undefined && object[nextProp] !== null) {
+                        object = object[nextProp];
+                    } else {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        },
+
+        /**
+
+            ## Navigate
+
+            Navigates the app to a gaffa-app endpoint
+
+                gaffa.navigate(url);
+
+            To navigate into a named view:
+
+                gaffa.navigate(url, target);
+
+            Where target is: [viewName].[viewContainerName], eg:
+
+                gaffa.navigate('/someroute', 'myPageContainer.content');
+
+            myPageContainer would be a named ContainerView and content is the viewContainer on the view to target.
+        */
+        navigate: navigate,
+
+        load: load,
+
+        //This is here so i can remove it later and replace with a better verson.
+        extend: merge, // DEPRICATED
+
+        merge: merge,
+
+        clone: clone,
+        ajax: ajax,
+        crel: crel,
+        doc: doc,
+        fastEach: fastEach,
+        getClosestItem: getClosestItem,
+        pushState: function(state, title, location){
+            window.history.pushState(state, title, location);
+        }
+    };
+
+    merge(gaffa, gaffaPublicObject);
+
+    return gaffa;
+
+}
+
+
+// "constants"
+Gaffa.pathSeparator = "/";
+
+Gaffa.Property = Property;
+Gaffa.ViewContainer = ViewContainer;
+Gaffa.ViewItem = ViewItem;
+Gaffa.View = View;
+Gaffa.ContainerView = ContainerView;
+Gaffa.Action = Action;
+Gaffa.createSpec = createSpec;
+Gaffa.Behaviour = Behaviour;
+Gaffa.addDefaultStyle = addDefaultStyle;
+
+Gaffa.propertyUpdaters = {
+    group: function (viewsName, insert, remove, empty) {
+        return function (viewModel, value) {
+            var property = this,
+                gaffa = property.gaffa,
+                childViews = viewModel.views[viewsName],
+                previousGroups = property.previousGroups,
+                newView,
+                isEmpty;
+
+            if (value && typeof value === "object"){
+
+                viewModel.distinctGroups = getDistinctGroups(gaffa, property.value, property.expression);
+
+                if(previousGroups){
+                    if(previousGroups.length === viewModel.distinctGroups.length){
+                        return;
+                    }
+                    var same = true;
+                    for(var i = 0; i < previousGroups.length; i++) {
+                        var group = previousGroups[i];
+                        if(group !== viewModel.distinctGroups[group]){
+                            same = false;
+                        }
+                    }
+                    if(same){
+                        return;
+                    }
+                }
+
+                property.previousGroups = viewModel.distinctGroups;
+
+
+                for(var i = 0; i < childViews.length; i++){
+                    var childView = childViews[i];
+                    if(viewModel.distinctGroups.indexOf(childView.group)<0){
+                        childViews.splice(i, 1);
+                        i--;
+                        remove(viewModel, value, childView);
+                    }
+                }
+                for(var i = 0; i < viewModel.distinctGroups.length; i++) {
+                    var group = viewModel.distinctGroups[i];
+                    var exists = false;
+                    for(var i = 0; i < childViews.length; i++) {
+                        if(child.group === childViews[i]){
+                            exists = true;
+                        }
+                    }
+
+                    if (!exists) {
+                        newView = {group: group};
+                        insert(viewModel, value, newView);
+                    }
+                }
+
+                isEmpty = !childViews.length;
+
+                empty(viewModel, isEmpty);
+            }else{
+                for(var i = 0; i < childViews.length; i++) {
+                    childViews.splice(index, 1);
+                    remove(viewModel, property.value, childViews[i]);
+                }
+            }
+        };
+    }
+};
+
+module.exports = Gaffa;
+
+///[license.md]
+
+},{"./raf.js":71,"crel":43,"deep-equal":44,"doc-js":46,"events":1,"fasteach":50,"gedi":54,"laidout":63,"merge":64,"spec-js":65,"statham":69}],43:[function(require,module,exports){
+//Copyright (C) 2012 Kory Nunn
+
+//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+/*
+
+    This code is not formatted for readability, but rather run-speed and to assist compilers.
+    
+    However, the code's intention should be transparent.
+    
+    *** IE SUPPORT ***
+    
+    If you require this library to work in IE7, add the following after declaring crel.
+    
+    var testDiv = document.createElement('div'),
+        testLabel = document.createElement('label');
+
+    testDiv.setAttribute('class', 'a');    
+    testDiv['className'] !== 'a' ? crel.attrMap['class'] = 'className':undefined;
+    testDiv.setAttribute('name','a');
+    testDiv['name'] !== 'a' ? crel.attrMap['name'] = function(element, value){
+        element.id = value;
+    }:undefined;
+    
+
+    testLabel.setAttribute('for', 'a');
+    testLabel['htmlFor'] !== 'a' ? crel.attrMap['for'] = 'htmlFor':undefined;
+    
+    
+
+*/
+
+// if the module has no dependencies, the above pattern can be simplified to
+(function (root, factory) {
+    if (typeof exports === 'object') {
+        module.exports = factory();
+    } else if (typeof define === 'function' && define.amd) {
+        define(factory);
+    } else {
+        root.crel = factory();
+  }
+}(this, function () {
+    // based on http://stackoverflow.com/questions/384286/javascript-isdom-how-do-you-check-if-a-javascript-object-is-a-dom-object
+    var isNode = typeof Node === 'object'
+        ? function (object) { return object instanceof Node }
+        : function (object) {
+            return object
+                && typeof object === 'object'
+                && typeof object.nodeType === 'number'
+                && typeof object.nodeName === 'string';
+        };
+
+    function crel(){
+        var document = window.document,
+            args = arguments, //Note: assigned to a variable to assist compilers. Saves about 40 bytes in closure compiler. Has negligable effect on performance.
+            element = document.createElement(args[0]),
+            child,
+            settings = args[1],
+            childIndex = 2,
+            argumentsLength = args.length,
+            attributeMap = crel.attrMap;
+
+        // shortcut
+        if(argumentsLength === 1){
+            return element;
+        }
+
+        if(typeof settings !== 'object' || isNode(settings)) {
+            --childIndex;
+            settings = null;
+        }
+
+        // shortcut if there is only one child that is a string    
+        if((argumentsLength - childIndex) === 1 && typeof args[childIndex] === 'string' && element.textContent !== undefined){
+            element.textContent = args[childIndex];
+        }else{    
+            for(; childIndex < argumentsLength; ++childIndex){
+                child = args[childIndex];
+                
+                if(child == null){
+                    continue;
+                }
+                
+                if(!isNode(child)){
+                    child = document.createTextNode(child);
+                }
+                
+                element.appendChild(child);
+            }
+        }
+        
+        for(var key in settings){
+            if(!attributeMap[key]){
+                element.setAttribute(key, settings[key]);
+            }else{
+                var attr = crel.attrMap[key];
+                if(typeof attr === 'function'){     
+                    attr(element, settings[key]);               
+                }else{            
+                    element.setAttribute(attr, settings[key]);
+                }
+            }
+        }
+        
+        return element;
+    }
+    
+    // Used for mapping one kind of attribute to the supported version of that in bad browsers.
+    // String referenced so that compilers maintain the property name.
+    crel['attrMap'] = {};
+    
+    // String referenced so that compilers maintain the property name.
+    crel["isNode"] = isNode;
+    
+    return crel;
+}));
+
+},{}],44:[function(require,module,exports){
+var pSlice = Array.prototype.slice;
+var Object_keys = typeof Object.keys === 'function'
+    ? Object.keys
+    : function (obj) {
+        var keys = [];
+        for (var key in obj) keys.push(key);
+        return keys;
+    }
+;
+
+var deepEqual = module.exports = function (actual, expected) {
+  // 7.1. All identical values are equivalent, as determined by ===.
+  if (actual === expected) {
+    return true;
+
+  } else if (actual instanceof Date && expected instanceof Date) {
+    return actual.getTime() === expected.getTime();
+
+  // 7.3. Other pairs that do not both pass typeof value == 'object',
+  // equivalence is determined by ==.
+  } else if (typeof actual != 'object' && typeof expected != 'object') {
+    return actual == expected;
+
+  // 7.4. For all other Object pairs, including Array objects, equivalence is
+  // determined by having the same number of owned properties (as verified
+  // with Object.prototype.hasOwnProperty.call), the same set of keys
+  // (although not necessarily the same order), equivalent values for every
+  // corresponding key, and an identical 'prototype' property. Note: this
+  // accounts for both named and indexed properties on Arrays.
+  } else {
+    return objEquiv(actual, expected);
+  }
+}
+
+function isUndefinedOrNull(value) {
+  return value === null || value === undefined;
+}
+
+function isArguments(object) {
+  return Object.prototype.toString.call(object) == '[object Arguments]';
+}
+
+function objEquiv(a, b) {
+  if (isUndefinedOrNull(a) || isUndefinedOrNull(b))
+    return false;
+  // an identical 'prototype' property.
+  if (a.prototype !== b.prototype) return false;
+  //~~~I've managed to break Object.keys through screwy arguments passing.
+  //   Converting to array solves the problem.
+  if (isArguments(a)) {
+    if (!isArguments(b)) {
+      return false;
+    }
+    a = pSlice.call(a);
+    b = pSlice.call(b);
+    return deepEqual(a, b);
+  }
+  try {
+    var ka = Object_keys(a),
+        kb = Object_keys(b),
+        key, i;
+  } catch (e) {//happens when one is a string literal and the other isn't
+    return false;
+  }
+  // having the same number of owned properties (keys incorporates
+  // hasOwnProperty)
+  if (ka.length != kb.length)
+    return false;
+  //the same set of keys (although not necessarily the same order),
+  ka.sort();
+  kb.sort();
+  //~~~cheap key test
+  for (i = ka.length - 1; i >= 0; i--) {
+    if (ka[i] != kb[i])
+      return false;
+  }
+  //equivalent values for every corresponding key, and
+  //~~~possibly expensive deep test
+  for (i = ka.length - 1; i >= 0; i--) {
+    key = ka[i];
+    if (!deepEqual(a[key], b[key])) return false;
+  }
+  return true;
+}
+
+},{}],45:[function(require,module,exports){
+module.exports=require(9)
+},{"./getTarget":47,"./getTargets":48,"./isList":49}],46:[function(require,module,exports){
+module.exports=require(10)
+},{"./doc":45,"./getTargets":48,"./isList":49}],47:[function(require,module,exports){
+module.exports=require(11)
+},{}],48:[function(require,module,exports){
+module.exports=require(12)
+},{}],49:[function(require,module,exports){
+module.exports=require(13)
+},{}],50:[function(require,module,exports){
+function fastEach(items, callback) {
+    for (var i = 0; i < items.length && !callback(items[i], i, items);i++) {}
+    return items;
+}
+
+module.exports = fastEach;
+},{}],51:[function(require,module,exports){
 //Copyright (C) 2012 Kory Nunn, Matt Ginty & Maurice Butler
 
 //Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -6287,222 +8724,60 @@ module.exports = Gaffa;
 
 ///[license.md]
 
-},{"./raf.js":57,"crel":41,"deep-equal":42,"doc-js":10,"events":1,"fasteach":43,"gedi":45,"laidout":54,"merge":55,"spec-js":56,"statham":64}],41:[function(require,module,exports){
-//Copyright (C) 2012 Kory Nunn
-
-//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
+},{"./raf.js":52,"crel":43,"deep-equal":44,"doc-js":46,"events":1,"fasteach":50,"gedi":54,"laidout":63,"merge":64,"spec-js":65,"statham":69}],52:[function(require,module,exports){
 /*
+ * raf.js
+ * https://github.com/ngryman/raf.js
+ *
+ * original requestAnimationFrame polyfill by Erik Möller
+ * inspired from paul_irish gist and post
+ *
+ * Copyright (c) 2013 ngryman
+ * Licensed under the MIT license.
+ */
 
-    This code is not formatted for readability, but rather run-speed and to assist compilers.
-    
-    However, the code's intention should be transparent.
-    
-    *** IE SUPPORT ***
-    
-    If you require this library to work in IE7, add the following after declaring crel.
-    
-    var testDiv = document.createElement('div'),
-        testLabel = document.createElement('label');
+var global = typeof window !== 'undefined' ? window : this;
 
-    testDiv.setAttribute('class', 'a');    
-    testDiv['className'] !== 'a' ? crel.attrMap['class'] = 'className':undefined;
-    testDiv.setAttribute('name','a');
-    testDiv['name'] !== 'a' ? crel.attrMap['name'] = function(element, value){
-        element.id = value;
-    }:undefined;
-    
+var lastTime = 0,
+    vendors = ['webkit', 'moz'],
+    requestAnimationFrame = global.requestAnimationFrame,
+    cancelAnimationFrame = global.cancelAnimationFrame,
+    i = vendors.length;
 
-    testLabel.setAttribute('for', 'a');
-    testLabel['htmlFor'] !== 'a' ? crel.attrMap['for'] = 'htmlFor':undefined;
-    
-    
-
-*/
-
-// if the module has no dependencies, the above pattern can be simplified to
-(function (root, factory) {
-    if (typeof exports === 'object') {
-        module.exports = factory();
-    } else if (typeof define === 'function' && define.amd) {
-        define(factory);
-    } else {
-        root.crel = factory();
-  }
-}(this, function () {
-    // based on http://stackoverflow.com/questions/384286/javascript-isdom-how-do-you-check-if-a-javascript-object-is-a-dom-object
-    var isNode = typeof Node === 'object'
-        ? function (object) { return object instanceof Node }
-        : function (object) {
-            return object
-                && typeof object === 'object'
-                && typeof object.nodeType === 'number'
-                && typeof object.nodeName === 'string';
-        };
-
-    function crel(){
-        var document = window.document,
-            args = arguments, //Note: assigned to a variable to assist compilers. Saves about 40 bytes in closure compiler. Has negligable effect on performance.
-            element = document.createElement(args[0]),
-            child,
-            settings = args[1],
-            childIndex = 2,
-            argumentsLength = args.length,
-            attributeMap = crel.attrMap;
-
-        // shortcut
-        if(argumentsLength === 1){
-            return element;
-        }
-
-        if(typeof settings !== 'object' || isNode(settings)) {
-            --childIndex;
-            settings = null;
-        }
-
-        // shortcut if there is only one child that is a string    
-        if((argumentsLength - childIndex) === 1 && typeof args[childIndex] === 'string' && element.textContent !== undefined){
-            element.textContent = args[childIndex];
-        }else{    
-            for(; childIndex < argumentsLength; ++childIndex){
-                child = args[childIndex];
-                
-                if(child == null){
-                    continue;
-                }
-                
-                if(!isNode(child)){
-                    child = document.createTextNode(child);
-                }
-                
-                element.appendChild(child);
-            }
-        }
-        
-        for(var key in settings){
-            if(!attributeMap[key]){
-                element.setAttribute(key, settings[key]);
-            }else{
-                var attr = crel.attrMap[key];
-                if(typeof attr === 'function'){     
-                    attr(element, settings[key]);               
-                }else{            
-                    element.setAttribute(attr, settings[key]);
-                }
-            }
-        }
-        
-        return element;
-    }
-    
-    // Used for mapping one kind of attribute to the supported version of that in bad browsers.
-    // String referenced so that compilers maintain the property name.
-    crel['attrMap'] = {};
-    
-    // String referenced so that compilers maintain the property name.
-    crel["isNode"] = isNode;
-    
-    return crel;
-}));
-
-},{}],42:[function(require,module,exports){
-var pSlice = Array.prototype.slice;
-var Object_keys = typeof Object.keys === 'function'
-    ? Object.keys
-    : function (obj) {
-        var keys = [];
-        for (var key in obj) keys.push(key);
-        return keys;
-    }
-;
-
-var deepEqual = module.exports = function (actual, expected) {
-  // 7.1. All identical values are equivalent, as determined by ===.
-  if (actual === expected) {
-    return true;
-
-  } else if (actual instanceof Date && expected instanceof Date) {
-    return actual.getTime() === expected.getTime();
-
-  // 7.3. Other pairs that do not both pass typeof value == 'object',
-  // equivalence is determined by ==.
-  } else if (typeof actual != 'object' && typeof expected != 'object') {
-    return actual == expected;
-
-  // 7.4. For all other Object pairs, including Array objects, equivalence is
-  // determined by having the same number of owned properties (as verified
-  // with Object.prototype.hasOwnProperty.call), the same set of keys
-  // (although not necessarily the same order), equivalent values for every
-  // corresponding key, and an identical 'prototype' property. Note: this
-  // accounts for both named and indexed properties on Arrays.
-  } else {
-    return objEquiv(actual, expected);
-  }
+// try to un-prefix existing raf
+while (--i >= 0 && !requestAnimationFrame) {
+    requestAnimationFrame = global[vendors[i] + 'RequestAnimationFrame'];
+    cancelAnimationFrame = global[vendors[i] + 'CancelAnimationFrame'];
 }
 
-function isUndefinedOrNull(value) {
-  return value === null || value === undefined;
+// polyfill with setTimeout fallback
+// heavily inspired from @darius gist mod: https://gist.github.com/paulirish/1579671#comment-837945
+if (!requestAnimationFrame || !cancelAnimationFrame) {
+    requestAnimationFrame = function(callback) {
+        var now = +Date.now(),
+            nextTime = Math.max(lastTime + 16, now);
+        return setTimeout(function() {
+            callback(lastTime = nextTime);
+        }, nextTime - now);
+    };
+
+    cancelAnimationFrame = clearTimeout;
 }
 
-function isArguments(object) {
-  return Object.prototype.toString.call(object) == '[object Arguments]';
+if (!cancelAnimationFrame){
+    global.cancelAnimationFrame = function(id) {
+        clearTimeout(id);
+    };
 }
 
-function objEquiv(a, b) {
-  if (isUndefinedOrNull(a) || isUndefinedOrNull(b))
-    return false;
-  // an identical 'prototype' property.
-  if (a.prototype !== b.prototype) return false;
-  //~~~I've managed to break Object.keys through screwy arguments passing.
-  //   Converting to array solves the problem.
-  if (isArguments(a)) {
-    if (!isArguments(b)) {
-      return false;
-    }
-    a = pSlice.call(a);
-    b = pSlice.call(b);
-    return deepEqual(a, b);
-  }
-  try {
-    var ka = Object_keys(a),
-        kb = Object_keys(b),
-        key, i;
-  } catch (e) {//happens when one is a string literal and the other isn't
-    return false;
-  }
-  // having the same number of owned properties (keys incorporates
-  // hasOwnProperty)
-  if (ka.length != kb.length)
-    return false;
-  //the same set of keys (although not necessarily the same order),
-  ka.sort();
-  kb.sort();
-  //~~~cheap key test
-  for (i = ka.length - 1; i >= 0; i--) {
-    if (ka[i] != kb[i])
-      return false;
-  }
-  //equivalent values for every corresponding key, and
-  //~~~possibly expensive deep test
-  for (i = ka.length - 1; i >= 0; i--) {
-    key = ka[i];
-    if (!deepEqual(a[key], b[key])) return false;
-  }
-  return true;
-}
+global.requestAnimationFrame = requestAnimationFrame;
+global.cancelAnimationFrame = cancelAnimationFrame;
 
-},{}],43:[function(require,module,exports){
-function fastEach(items, callback) {
-    for (var i = 0; i < items.length && !callback(items[i], i, items);i++) {}
-    return items;
-}
-
-module.exports = fastEach;
-},{}],44:[function(require,module,exports){
+module.exports = {
+    requestAnimationFrame: requestAnimationFrame,
+    cancelAnimationFrame: cancelAnimationFrame
+};
+},{}],53:[function(require,module,exports){
 var WM = typeof WM !== 'undefined' ? WeakMap : require('weak-map'),
     paths = require('gedi-paths'),
     pathConstants = paths.constants
@@ -6664,8 +8939,8 @@ module.exports = function(modelGet, gel, PathToken){
             var tokens = gel.tokenise(expression);
             for(var index = 0; index < tokens.length; index++){
             var token = tokens[index];
-                if(token instanceof PathToken){
-                    paths.push(token.original);
+                if(token.path != null){
+                    paths.push(token.path);
                 }
             }
         } else {
@@ -6904,7 +9179,7 @@ module.exports = function(modelGet, gel, PathToken){
         removeModelReference: removeModelReference
     };
 };
-},{"./modelOperations":46,"gedi-paths":48,"weak-map":52}],45:[function(require,module,exports){
+},{"./modelOperations":55,"gedi-paths":57,"weak-map":61}],54:[function(require,module,exports){
 //Copyright (C) 2012 Kory Nunn
 
 //Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -7535,7 +9810,7 @@ function newGedi(model) {
 }
 
 module.exports = gediConstructor;
-},{"./events":44,"./modelOperations":46,"./pathToken":53,"gedi-paths":48,"gel-js":49,"spec-js":56}],46:[function(require,module,exports){
+},{"./events":53,"./modelOperations":55,"./pathToken":62,"gedi-paths":57,"gel-js":58,"spec-js":65}],55:[function(require,module,exports){
 var paths = require('gedi-paths'),
     memoiseCache = {};
 
@@ -7665,7 +9940,7 @@ module.exports = {
     get: get,
     set: set
 };
-},{"gedi-paths":48}],47:[function(require,module,exports){
+},{"gedi-paths":57}],56:[function(require,module,exports){
 module.exports = function detectPath(substring){
     if (substring.charAt(0) === '[') {
         var index = 1;
@@ -7684,7 +9959,7 @@ module.exports = function detectPath(substring){
         } while (index < substring.length);
     }
 };
-},{}],48:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 var detectPath = require('./detectPath');
 
 var pathSeparator = "/",
@@ -7954,7 +10229,7 @@ module.exports = {
         wildcard: pathWildcard
     }
 };
-},{"./detectPath":47}],49:[function(require,module,exports){
+},{"./detectPath":56}],58:[function(require,module,exports){
 var Lang = require('lang-js'),
     paths = require('gedi-paths'),
     merge = require('merge'),
@@ -8335,20 +10610,40 @@ PipeApplyToken.prototype.evaluate = function(scope){
     this.result = scope.callWith(this.functionToken.result, this.argumentsToken.result, this);
 };
 
-function FunctionToken(){}
-FunctionToken = createSpec(FunctionToken, Token);
-FunctionToken.tokenPrecedence = 1;
-FunctionToken.prototype.parsePrecedence = 3;
-FunctionToken.prototype.name = 'FunctionToken';
-FunctionToken.tokenise = function(substring) {
+function BraceToken(){}
+BraceToken = createSpec(BraceToken, Token);
+BraceToken.tokenPrecedence = 1;
+BraceToken.prototype.parsePrecedence = 3;
+BraceToken.prototype.name = 'BraceToken';
+BraceToken.tokenise = function(substring) {
     if(substring.charAt(0) === '{'){
-        return new FunctionToken(substring.charAt(0), 1);
+        return new BraceToken(substring.charAt(0), 1);
     }
 };
-FunctionToken.prototype.parse = createNestingParser(FunctionEndToken);
-FunctionToken.prototype.evaluate = function(scope){
-    var parameterNames = this.childTokens.slice(),
-        fnBody = parameterNames.pop();
+BraceToken.prototype.parse = createNestingParser(BraceEndToken);
+BraceToken.prototype.evaluate = function(scope){
+    var parameterNames = this.childTokens.slice();
+
+    // Object literal
+    if(parameterNames[0] instanceof TupleToken){
+        this.result = {};
+        this.sourcePathInfo = new SourcePathInfo(null, {}, true);
+
+        for(var i = 0; i < parameterNames.length; i++){
+            var token = parameterNames[i];
+            token.evaluate(scope);
+            this.result[token.keyToken.result] = token.valueToken.result;
+
+            if(token.valueToken.sourcePathInfo){
+                this.sourcePathInfo.subPaths[key] = token.valueToken.sourcePathInfo.path;
+            }
+        };
+
+        return;
+    }
+
+    // Function expression
+    var fnBody = parameterNames.pop();
 
     this.result = function(scope, args){
         scope = new Scope(scope);
@@ -8368,15 +10663,39 @@ FunctionToken.prototype.evaluate = function(scope){
     };
 };
 
-function FunctionEndToken(){}
-FunctionEndToken = createSpec(FunctionEndToken, Token);
-FunctionEndToken.tokenPrecedence = 1;
-FunctionEndToken.prototype.parsePrecedence = 4;
-FunctionEndToken.prototype.name = 'FunctionEndToken';
-FunctionEndToken.tokenise = function(substring) {
+function BraceEndToken(){}
+BraceEndToken = createSpec(BraceEndToken, Token);
+BraceEndToken.tokenPrecedence = 1;
+BraceEndToken.prototype.parsePrecedence = 4;
+BraceEndToken.prototype.name = 'BraceEndToken';
+BraceEndToken.tokenise = function(substring) {
     if(substring.charAt(0) === '}'){
-        return new FunctionEndToken(substring.charAt(0), 1);
+        return new BraceEndToken(substring.charAt(0), 1);
     }
+};
+
+function Tuple(key, value){
+    this[key] = value;
+}
+
+function TupleToken(){}
+TupleToken = createSpec(TupleToken, Token);
+TupleToken.prototype.name = 'TupleToken';
+TupleToken.tokenPrecedence = 2;
+TupleToken.prototype.parsePrecedence = 5;
+TupleToken.tokenise = function(substring){
+    var tupleConst = ":";
+    return (substring.charAt(0) === tupleConst) ? new TupleToken(tupleConst, 1) : undefined;
+};
+TupleToken.prototype.parse = function(tokens, position){
+    this.keyToken = tokens.splice(position-1,1)[0];
+    this.valueToken = tokens.splice(position, 1)[0];
+};
+TupleToken.prototype.evaluate = function(scope){
+    this.keyToken.evaluate(scope);
+    this.valueToken.evaluate(scope);
+
+    this.result = new Tuple(this.keyToken.result, this.valueToken.result);
 };
 
 function SourcePathInfo(token, source, trackSubPaths){
@@ -8496,8 +10815,9 @@ var tokenConverters = [
         PeriodToken,
         PipeToken,
         PipeApplyToken,
-        FunctionToken,
-        FunctionEndToken
+        BraceToken,
+        BraceEndToken,
+        TupleToken
     ],
     scope = {
         "parseInt":function(scope, args){
@@ -9254,14 +11574,14 @@ Gel = function(){
         return gel.lang.tokenise(expression, this.tokenConverters);
     };
     gel.evaluate = function(expression, injectedScope, returnAsTokens){
-        var scope = new Scope();
+        var scope = new Scope(this.scope);
 
-        scope.add(this.scope).add(injectedScope);
+        scope.add(injectedScope);
 
         return lang.evaluate(expression, scope, this.tokenConverters, returnAsTokens);
     };
     gel.tokenConverters = tokenConverters.slice();
-    gel.scope = Object.create(scope);
+    gel.scope = merge({}, scope);
 
     return gel;
 };
@@ -9269,7 +11589,7 @@ Gel = function(){
 Gel.Token = Token;
 Gel.Scope = Scope;
 module.exports = Gel;
-},{"gedi-paths":48,"lang-js":50,"merge":55,"spec-js":56}],50:[function(require,module,exports){
+},{"gedi-paths":57,"lang-js":59,"merge":64,"spec-js":65}],59:[function(require,module,exports){
 (function (process){
 var Token = require('./token');
 
@@ -9368,7 +11688,9 @@ function callWith(fn, fnArguments, calledToken){
 
 function Scope(oldScope){
     this.__scope__ = {};
-    this.__outerScope__ = oldScope;
+    if(oldScope){
+        this.__outerScope__ = oldScope instanceof Scope ? oldScope : {__scope__:oldScope};
+    }
 }
 Scope.prototype.get = function(key){
     var scope = this;
@@ -9589,11 +11911,7 @@ function Lang(){
             lastToken;
 
         if(!(scope instanceof Scope)){
-            var injectedScope = scope;
-
-            scope = new Scope();
-
-            scope.add(injectedScope);
+            scope = new Scope(scope);
         }
 
         if(Array.isArray(expression)){
@@ -9635,7 +11953,7 @@ Lang.Token = Token;
 
 module.exports = Lang;
 }).call(this,require("FWaASH"))
-},{"./token":51,"FWaASH":2}],51:[function(require,module,exports){
+},{"./token":60,"FWaASH":2}],60:[function(require,module,exports){
 function Token(substring, length){
     this.original = substring;
     this.length = length;
@@ -9647,7 +11965,7 @@ Token.prototype.valueOf = function(){
 }
 
 module.exports = Token;
-},{}],52:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 // Copyright (C) 2011 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -10334,7 +12652,7 @@ module.exports = Token;
   }
 })();
 
-},{}],53:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 var Lang = require('lang-js'),
     Token = Lang.Token,
     paths = require('gedi-paths'),
@@ -10343,7 +12661,9 @@ var Lang = require('lang-js'),
 
 module.exports = function(get, model){
 
-    function PathToken(){}
+    function PathToken(path){
+        this.path = path;
+    }
     PathToken = createSpec(PathToken, Token);
     PathToken.prototype.name = 'PathToken';
     PathToken.tokenPrecedence = 1;
@@ -10365,9 +12685,9 @@ module.exports = function(get, model){
 
     return PathToken;
 }
-},{"gedi-paths":48,"gedi-paths/detectPath":47,"lang-js":50,"spec-js":56}],54:[function(require,module,exports){
+},{"gedi-paths":57,"gedi-paths/detectPath":56,"lang-js":59,"spec-js":65}],63:[function(require,module,exports){
 module.exports=require(16)
-},{}],55:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 /*!
  * @name JavaScript/NodeJS Merge v1.1.3
  * @author yeikos
@@ -10449,7 +12769,7 @@ module.exports=require(16)
 	}
 
 })(typeof module === 'object' && module && typeof module.exports === 'object' && module.exports);
-},{}],56:[function(require,module,exports){
+},{}],65:[function(require,module,exports){
 Object.create = Object.create || function (o) {
     if (arguments.length > 1) {
         throw new Error('Object.create implementation only accepts the first parameter.');
@@ -10487,60 +12807,151 @@ function createSpec(child, parent){
 }
 
 module.exports = createSpec;
-},{}],57:[function(require,module,exports){
-/*
- * raf.js
- * https://github.com/ngryman/raf.js
- *
- * original requestAnimationFrame polyfill by Erik Möller
- * inspired from paul_irish gist and post
- *
- * Copyright (c) 2013 ngryman
- * Licensed under the MIT license.
- */
-
-var global = typeof window !== 'undefined' ? window : this;
-
-var lastTime = 0,
-    vendors = ['webkit', 'moz'],
-    requestAnimationFrame = global.requestAnimationFrame,
-    cancelAnimationFrame = global.cancelAnimationFrame,
-    i = vendors.length;
-
-// try to un-prefix existing raf
-while (--i >= 0 && !requestAnimationFrame) {
-    requestAnimationFrame = global[vendors[i] + 'RequestAnimationFrame'];
-    cancelAnimationFrame = global[vendors[i] + 'CancelAnimationFrame'];
+},{}],66:[function(require,module,exports){
+function escapeHex(hex){
+    return String.fromCharCode(hex);
 }
 
-// polyfill with setTimeout fallback
-// heavily inspired from @darius gist mod: https://gist.github.com/paulirish/1579671#comment-837945
-if (!requestAnimationFrame || !cancelAnimationFrame) {
-    requestAnimationFrame = function(callback) {
-        var now = +Date.now(),
-            nextTime = Math.max(lastTime + 16, now);
-        return setTimeout(function() {
-            callback(lastTime = nextTime);
-        }, nextTime - now);
-    };
-
-    cancelAnimationFrame = clearTimeout;
+function createKey(number){
+    if(number + 0xE001 > 0xFFFF){
+        throw "Too many references. Log an issue on gihub an i'll add an order of magnatude to the keys.";
+    }
+    return escapeHex(number + 0xE001);
 }
 
-if (!cancelAnimationFrame){
-    global.cancelAnimationFrame = function(id) {
-        clearTimeout(id);
-    };
+module.exports = createKey;
+},{}],67:[function(require,module,exports){
+var revive = require('./revive');
+
+function parse(json, reviver){
+    return revive(JSON.parse(json, reviver));
 }
 
-global.requestAnimationFrame = requestAnimationFrame;
-global.cancelAnimationFrame = cancelAnimationFrame;
+module.exports = parse;
+},{"./revive":68}],68:[function(require,module,exports){
+var createKey = require('./createKey'),
+    keyKey = createKey(-1);
 
+function revive(input){
+    var objects = {},
+        scannedInputObjects = [];
+        scannedOutputObjects = [];
+
+    function scan(input){
+        var output = input;
+
+        if(typeof output !== 'object'){
+            return output;
+        }
+
+        if(scannedOutputObjects.indexOf(input) < 0){
+            output = input instanceof Array ? [] : {};
+            scannedOutputObjects.push(output);
+            scannedInputObjects.push(input);
+        }
+
+
+        if(input[keyKey]){
+            objects[input[keyKey]] = output;
+        }
+
+        for(var key in input){
+            var value = input[key];
+
+            if(key === keyKey){
+                continue;
+            }
+
+            if(value != null && typeof value === 'object'){
+                var objectIndex = scannedInputObjects.indexOf(value);
+                if(objectIndex<0){
+                    output[key] = scan(value);
+                }else{
+                    output[key] = scannedOutputObjects[objectIndex];
+                }
+            }else if(
+                typeof value === 'string' &&
+                value.length === 1 &&
+                value.charCodeAt(0) > keyKey.charCodeAt(0) &&
+                value in objects
+            ){
+                output[key] = objects[value];
+            }else{
+                output[key] = input[key];
+            }
+        }
+        return output;
+    }
+
+    return scan(input);
+}
+
+module.exports = revive;
+},{"./createKey":66}],69:[function(require,module,exports){
 module.exports = {
-    requestAnimationFrame: requestAnimationFrame,
-    cancelAnimationFrame: cancelAnimationFrame
+    stringify: require('./stringify'),
+    parse: require('./parse'),
+    revive: require('./revive')
 };
-},{}],58:[function(require,module,exports){
+},{"./parse":67,"./revive":68,"./stringify":70}],70:[function(require,module,exports){
+var createKey = require('./createKey'),
+    keyKey = createKey(-1);
+
+function toJsonValue(value){
+    if(value != null && typeof value === 'object'){
+        var result = value instanceof Array ? [] : {},
+            output = value;
+        if('toJSON' in value){
+            output = value.toJSON();
+        }
+        for(var key in output){
+            result[key] = output[key];
+        }
+        return result;
+    }
+
+    return value;
+}
+
+function stringify(input, replacer, spacer){
+    var objects = [],
+        outputObjects = [],
+        refs = [];
+
+    function scan(input){
+
+        if(input === null || typeof input !== 'object'){
+            return input;
+        }
+
+        var output,
+            index = objects.indexOf(input);
+
+        if(index >= 0){
+            outputObjects[index][keyKey] = refs[index]
+            return refs[index];
+        }
+
+        index = objects.length;
+        objects[index] = input;
+        output = toJsonValue(input);
+        outputObjects[index] = output;
+        refs[index] = createKey(index);
+
+        for(var key in output){
+            output[key] = scan(output[key]);
+        }
+
+        return output;
+    }
+
+    return JSON.stringify(scan(input), replacer, spacer);
+}
+
+module.exports = stringify;
+},{"./createKey":66}],71:[function(require,module,exports){
+module.exports=require(52)
+},{}],72:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     createSpec = require('spec-js');
 
@@ -10667,7 +13078,7 @@ TemplaterProperty.prototype.update =function (viewModel, value) {
             }
         }
         if(this._emptyTemplateCache){
-            newView = gaffa.initialiseViewItem(JSON.parse(this._emptyTemplateCache), this.gaffa, this.gaffa.views._constructors);
+            newView = gaffa.initialiseView(JSON.parse(this._emptyTemplateCache));
             newView.containerName = viewsName;
             childViews.add(newView, itemIndex);
         }
@@ -10675,7 +13086,7 @@ TemplaterProperty.prototype.update =function (viewModel, value) {
 };
 
 module.exports = TemplaterProperty;
-},{"gaffa":40,"spec-js":56}],59:[function(require,module,exports){
+},{"gaffa":51,"spec-js":65}],73:[function(require,module,exports){
 module.exports = function(gel){
     gel.scope.url = function(scope, args){
         return window.location.toString();
@@ -10702,21 +13113,16 @@ module.exports = function(gel){
         return window.location.hash.split('#').pop();
     };
 };
-},{}],60:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 var arrayProto = [],
     absolutePath = /^.+?\:\/\//g,
-    formatRegex = /\{[0-9]*?\}/g,
-    sanitiseRegex = /[#-.\[\]-^?]/g;
-
-function sanitise(string){
-    return string.replace(sanitiseRegex, '\\$&');
-}
+    formatRegex = /\{[0-9]*?\}/g;
 
 function formatString(string, values) {
     return string.replace(/{(\d+)}/g, function (match, number) {
-        return (values[number] === undefined || values[number] === null) ? '' : values[number];
+        return (values[number] == undefined || values[number] == null) ? match : values[number];
     });
-}
+};
 
 function resolve(rootPath, path){
     if(path.match(absolutePath)){
@@ -10754,7 +13160,7 @@ function scanRoutes(routes, fn){
     }
 }
 
-Router.prototype.details = function(url){
+Router.prototype.find = function(url){
     var router = this;
 
     if(url == null){
@@ -10762,36 +13168,15 @@ Router.prototype.details = function(url){
     }
 
     return scanRoutes(this.routes, function(route, routeName){
-        var urls = Array.isArray(route._url) ? route._url : [route._url],
-            bestMatch,
-            mostMatches = 0;
-
+        var urls = Array.isArray(route._url) ? route._url : [route._url];
         for(var i = 0; i < urls.length; i++){
-            var routeKey = router.resolve(router.basePath, urls[i]),
-                match = url.match('^' + sanitise(routeKey).replace(formatRegex, '(.*?)') + '$');
+            var routeKey = router.resolve(router.basePath, urls[i]);
 
-            if(match && match.length > mostMatches){
-                mostMatches = match.length;
-                bestMatch = routeKey;
+            if(url.match('^' + routeKey.replace(formatRegex, '.*?') + '$')){
+                return routeName;
             }
         }
-
-        if(!bestMatch){
-            return;
-        }
-
-        return {
-            path: url,
-            name: routeName,
-            template: bestMatch
-        };
     });
-};
-
-Router.prototype.find = function(url){
-    var details = this.details.apply(this, arguments);
-
-    return details && details.name;
 };
 
 Router.prototype.upOneName = function(name){
@@ -10814,20 +13199,10 @@ Router.prototype.upOne = function(path){
     return this.drill(path, this.upOneName(this.find(path)));
 };
 
-Router.prototype.getTemplate = function(name){
-    var args = arrayProto.slice.call(arguments, 1),
-        url = scanRoutes(this.routes, function(route, routeName){
+Router.prototype.get = function(name){
+    var url = scanRoutes(this.routes, function(route, routeName){
         if(name === routeName){
-            if(!Array.isArray(route._url)){
-                return route._url;
-            }
-
-            return route._url.filter(function(url){
-                var match = url.match(formatRegex);
-                if(match && match.length === args.length){
-                    return true;
-                }
-            })[0] || route._url[0];
+            return Array.isArray(route._url) ? route._url[0] : route._url;
         }
     });
 
@@ -10835,13 +13210,11 @@ Router.prototype.getTemplate = function(name){
         return;
     }
 
+    if(arguments.length > 1){
+        return this.resolve(this.basePath, formatString(url, arrayProto.slice.call(arguments, 1)));
+    }
+
     return this.resolve(this.basePath, url);
-};
-
-Router.prototype.get = function(name){
-    var template = this.getTemplate.apply(this, arguments);
-
-    return formatString(template, arrayProto.slice.call(arguments, 1));
 };
 
 Router.prototype.isIn = function(childName, parentName){
@@ -10861,14 +13234,14 @@ Router.prototype.isRoot = function(name){
 };
 
 Router.prototype.values = function(path){
-    var details = this.details.apply(this, arguments),
+    var routeTemplate = this.get(this.find(path)),
         results;
 
-    if(details == null || details.template == null){
+    if(routeTemplate == null){
         return;
     }
 
-    results = details.path.match('^' + sanitise(details.template).replace(formatRegex, '(.*?)') + '$');
+    results = path.match('^' + routeTemplate.replace(formatRegex, '(.*?)') + '$');
 
     if(results){
         return results.slice(1);
@@ -10893,149 +13266,7 @@ Router.prototype.drill = function(path, route){
 Router.prototype.resolve = resolve;
 
 module.exports = Router;
-},{}],61:[function(require,module,exports){
-function escapeHex(hex){
-    return String.fromCharCode(hex);
-}
-
-function createKey(number){
-    if(number + 0xE001 > 0xFFFF){
-        throw "Too many references. Log an issue on gihub an i'll add an order of magnatude to the keys.";
-    }
-    return escapeHex(number + 0xE001);
-}
-
-module.exports = createKey;
-},{}],62:[function(require,module,exports){
-var revive = require('./revive');
-
-function parse(json, reviver){
-    return revive(JSON.parse(json, reviver));
-}
-
-module.exports = parse;
-},{"./revive":63}],63:[function(require,module,exports){
-var createKey = require('./createKey'),
-    keyKey = createKey(-1);
-
-function revive(input){
-    var objects = {},
-        scannedInputObjects = [];
-        scannedOutputObjects = [];
-
-    function scan(input){
-        var output = input;
-
-        if(typeof output !== 'object'){
-            return output;
-        }
-
-        if(scannedOutputObjects.indexOf(input) < 0){
-            output = input instanceof Array ? [] : {};
-            scannedOutputObjects.push(output);
-            scannedInputObjects.push(input);
-        }
-
-
-        if(input[keyKey]){
-            objects[input[keyKey]] = output;
-        }
-
-        for(var key in input){
-            var value = input[key];
-
-            if(key === keyKey){
-                continue;
-            }
-
-            if(value != null && typeof value === 'object'){
-                var objectIndex = scannedInputObjects.indexOf(value);
-                if(objectIndex<0){
-                    output[key] = scan(value);
-                }else{
-                    output[key] = scannedOutputObjects[objectIndex];
-                }
-            }else if(
-                typeof value === 'string' &&
-                value.length === 1 &&
-                value.charCodeAt(0) > keyKey.charCodeAt(0) &&
-                value in objects
-            ){
-                output[key] = objects[value];
-            }else{
-                output[key] = input[key];
-            }
-        }
-        return output;
-    }
-
-    return scan(input);
-}
-
-module.exports = revive;
-},{"./createKey":61}],64:[function(require,module,exports){
-module.exports = {
-    stringify: require('./stringify'),
-    parse: require('./parse'),
-    revive: require('./revive')
-};
-},{"./parse":62,"./revive":63,"./stringify":65}],65:[function(require,module,exports){
-var createKey = require('./createKey'),
-    keyKey = createKey(-1);
-
-function toJsonValue(value){
-    if(value != null && typeof value === 'object'){
-        var result = value instanceof Array ? [] : {},
-            output = value;
-        if('toJSON' in value){
-            output = value.toJSON();
-        }
-        for(var key in output){
-            result[key] = output[key];
-        }
-        return result;
-    }
-
-    return value;
-}
-
-function stringify(input, replacer, spacer){
-    var objects = [],
-        outputObjects = [],
-        refs = [];
-
-    function scan(input){
-
-        if(input === null || typeof input !== 'object'){
-            return input;
-        }
-
-        var output,
-            index = objects.indexOf(input);
-
-        if(index >= 0){
-            outputObjects[index][keyKey] = refs[index]
-            return refs[index];
-        }
-
-        index = objects.length;
-        objects[index] = input;
-        output = toJsonValue(input);
-        outputObjects[index] = output;
-        refs[index] = createKey(index);
-
-        for(var key in output){
-            output[key] = scan(output[key]);
-        }
-
-        return output;
-    }
-
-    return JSON.stringify(scan(input), replacer, spacer);
-}
-
-module.exports = stringify;
-},{"./createKey":61}],66:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 var cache = {};
 
 function venfix(property, target){
@@ -11073,7 +13304,7 @@ function venfix(property, target){
 venfix.prefixes = ['webkit', 'moz', 'ms', 'o'];
 
 module.exports = venfix;
-},{}],67:[function(require,module,exports){
+},{}],76:[function(require,module,exports){
 module.exports = {
     Navigate : require('gaffa-navigate'),
     Set : require('gaffa-set'),
@@ -11087,42 +13318,7 @@ module.exports = {
     // custom
     Back: require('./gaffaExtensions/actions/back')
 };
-},{"./gaffaExtensions/actions/back":76,"gaffa-ajax":18,"gaffa-concat":21,"gaffa-conditional":22,"gaffa-navigate":31,"gaffa-push":33,"gaffa-remove":34,"gaffa-set":35,"gaffa-toggle":39}],68:[function(require,module,exports){
-var url = require('url');
-
-module.exports = function(gaffa){
-    var oldAjax = gaffa.ajax;
-    gaffa.ajax = function(settings){
-        var oldError = settings.error,
-            targetUrl = window.location.toString();
-
-        settings.error = function(error){
-
-            if(error.target.status === 401){
-                var responseData = JSON.parse(error.target.response);
-
-                if(responseData.redirect){
-                    if(responseData.message){
-                        gaffa.model.set('[redirectMessage]', responseData.message);
-                        gaffa.model.set('[targetUrl]', targetUrl);
-                    }
-                    gaffa.navigate(responseData.redirect);
-                    return;
-                }
-            }
-
-            if(error.target.status === 422){
-                var responseData = JSON.parse(error.target.response);
-
-                // ToDo: alert the user of errors.
-            }
-            oldError && oldError.apply(this, arguments);
-        };
-
-        return oldAjax(settings);
-    };
-};
-},{"url":7}],69:[function(require,module,exports){
+},{"./gaffaExtensions/actions/back":83,"gaffa-ajax":19,"gaffa-concat":23,"gaffa-conditional":24,"gaffa-navigate":33,"gaffa-push":35,"gaffa-remove":36,"gaffa-set":37,"gaffa-toggle":41}],77:[function(require,module,exports){
 var app = {},
     Gaffa = require('gaffa'),
     gaffa = new Gaffa(),
@@ -11145,18 +13341,12 @@ for(var key in behaviours){
 app.gaffa = gaffa;
 
 module.exports = app;
-},{"./actions":67,"./behaviours":70,"./views":82,"gaffa":40}],70:[function(require,module,exports){
+},{"./actions":76,"./behaviours":78,"./views":88,"gaffa":42}],78:[function(require,module,exports){
 module.exports = {
     PageLoad : require('gaffa-page-load'),
     ModelChange : require('gaffa-model-change')
 };
-},{"gaffa-model-change":30,"gaffa-page-load":32}],71:[function(require,module,exports){
-function strap(app){
-    app.gaffa.navigate(window.location.href, 'appBody.content');
-}
-
-module.exports = strap;
-},{}],72:[function(require,module,exports){
+},{"gaffa-model-change":32,"gaffa-page-load":34}],79:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11174,7 +13364,7 @@ module.exports = function(app){
     return createAppBody();
 
 };
-},{}],73:[function(require,module,exports){
+},{}],80:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11195,7 +13385,7 @@ module.exports = function(app){
     return createAppWrapper();
 
 };
-},{"../controls/mainMenu":75,"./appBody":72,"./header":74}],74:[function(require,module,exports){
+},{"../controls/mainMenu":82,"./appBody":79,"./header":81}],81:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11244,7 +13434,7 @@ module.exports = function(app){
     return createHeader();
 
 };
-},{}],75:[function(require,module,exports){
+},{}],82:[function(require,module,exports){
 module.exports = function(app){
     var views = app.views,
         actions = app.actions,
@@ -11294,7 +13484,7 @@ module.exports = function(app){
     return createMenu();
 
 };
-},{}],76:[function(require,module,exports){
+},{}],83:[function(require,module,exports){
 var Gaffa = require('gaffa');
 
 function Back(){
@@ -11307,7 +13497,7 @@ Back.prototype.trigger = function(){
 };
 
 module.exports = Back;
-},{"gaffa":40}],77:[function(require,module,exports){
+},{"gaffa":42}],84:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     Flap = require('flaps'),
     crel = require('crel'),
@@ -11371,7 +13561,7 @@ Showable.prototype.render = function(){
 };
 
 module.exports = Showable;
-},{"crel":8,"doc-js":10,"flaps":14,"gaffa":40,"venfix":66}],78:[function(require,module,exports){
+},{"crel":8,"doc-js":10,"flaps":14,"gaffa":42,"venfix":75}],85:[function(require,module,exports){
 module.exports = function(app){
     require('gel-url')(app.gaffa.gedi.gel);
 
@@ -11401,150 +13591,51 @@ module.exports = function(app){
         }
     };
 };
-},{"gel-url":59}],79:[function(require,module,exports){
+},{"gel-url":73}],86:[function(require,module,exports){
 var Gaffa = require('gaffa'),
     app = require('./app'),
-    bootstrapper = require('./bootstrapper'),
     gaffa = app.gaffa,
     router = require('./router'),
-    navigate = require('./navigate')(gaffa, router);
+    url = require('url');
 
 // Debugging
 window.gaffa = app.gaffa;
 
+// A custom router
 app.router = router;
 
+// Add extra gel functions
 require('./gelExtensions')(app);
-require('./ajax')(app.gaffa);
 
-gaffa.navigate = navigate;
+// Define what the default target is for navigation
+gaffa.navigateTarget = 'appBody.content';
 
-gaffa.notifications.add('navigation', function(){
+// Override how gaffa finds content pages
+gaffa.createNavigateUrl = function(href){
+    return 'build/pages/' + router.find(url.resolve(window.location.hostname, href)) + '.json';
+};
+
+// Store the current page name in the model, after navigating
+gaffa.on('navigate.success', function(){
     gaffa.model.set('[currentPage]', router.find());
 });
 
-window.onpopstate = function(event){
-    if(event.state){
-        gaffa.navigate(window.location.toString(), event.state.target, false);
-    }
+// Treat hash changes as navigation
+window.onhashchange = function(){
+   gaffa.navigate(window.location.href);
 };
 
 window.addEventListener('load', function(){
-    gaffa.model.set('[windowLoaded]', true);
 
+    // Add views to gaffa
     gaffa.views.add([
         require('./controls/appWrapper')(app)
     ]);
 
-    bootstrapper(app);
+    // Navigate to the page associated with the current URL
+    gaffa.navigate(window.location.href);
 });
-},{"./ajax":68,"./app":69,"./bootstrapper":71,"./controls/appWrapper":73,"./gelExtensions":78,"./navigate":80,"./router":81,"gaffa":40}],80:[function(require,module,exports){
-var url = require('url'),
-    statham = require('statham');
-
-module.exports = function(gaffa, router){
-    var pageCache = {};
-
-    function load(app, target){
-
-        var targetView = gaffa.views;
-
-        if(target){
-            var targetParts = target.split('.'),
-                targetName = targetParts[0],
-                targetViewContainer = targetParts[1];
-
-            targetView = gaffa.namedViews[targetName].views[targetViewContainer];
-        }
-
-        //clear state first
-        if (app.views) {
-            targetView.empty();
-        }
-
-        //set up state
-        if (app.model) {
-            gedi.set({});
-            gaffa.model.set(app.model, null, null, false);
-        }
-        if (app.views) {
-            for(var i = 0; i < app.views.length; i++) {
-                app.views[i] = gaffa.initialiseViewItem(app.views[i], gaffa, gaffa.views._constructors);
-            }
-            targetView.add(app.views);
-        }
-        if (app.behaviours) {
-            for(var i = 0; i < app.behaviours.length; i++) {
-                app.behaviours[i] = initialiseBehaviour(app.behaviours[i], gaffa);
-            }
-            gaffa.behaviours.add(app.behaviours);
-        }
-    }
-
-    function navigate(href, target, pushState, data) {
-
-        // Data will be passed to the route as a querystring
-        // but will not be displayed visually in the address bar.
-        // This is to help resolve caching issues.
-
-        // default target
-        if(target === undefined){
-            target = 'appBody.content';
-        }
-
-        function success (data) {
-            var title;
-
-            data.target = target;
-
-            if(data !== undefined && data !== null && data.title){
-                title = data.title;
-            }
-
-            // Always use pushstate unless triggered by onpopstate
-            if(pushState !== false) {
-                gaffa.pushState(data, title, href);
-            }
-
-            pageCache[href] = data;
-
-            load(statham.revive(pageCache[href]), target);
-
-            gaffa.notifications.notify("navigation.success");
-
-            window.scrollTo(0,0);
-        }
-
-        function error(error){
-            gaffa.notifications.notify("navigation.error", error);
-        }
-
-        function complete(){
-            gaffa.notifications.notify("navigation.complete");
-        }
-
-        gaffa.notifications.notify("navigation.begin");
-
-        if(gaffa.cacheNavigates !== false && pageCache[href]){
-            success(pageCache[href]);
-            complete();
-            return;
-        }
-
-        gaffa.ajax({
-            url: 'build/pages/' + router.find(url.resolve(window.location.hostname, href)) + '.json',
-            type: "get",
-            data: data, // This is to avoid the cached HTML version of a page if you are bootstrapping.
-            dataType: "json",
-            success: success,
-            error: error,
-            complete: complete
-        });
-    }
-
-    return navigate;
-};
-},{"statham":64,"url":7}],81:[function(require,module,exports){
+},{"./app":77,"./controls/appWrapper":80,"./gelExtensions":85,"./router":87,"gaffa":42,"url":7}],87:[function(require,module,exports){
 var Router = require('route-tree');
 
 module.exports = new Router({
@@ -11556,7 +13647,7 @@ module.exports = new Router({
     }
 });
 module.exports.basePath = window.location.href.split('/').slice(0,-1).join('/');
-},{"route-tree":60}],82:[function(require,module,exports){
+},{"route-tree":74}],88:[function(require,module,exports){
 module.exports = {
     Container : require('gaffa-container'),
     Heading : require('gaffa-heading'),
@@ -11575,4 +13666,4 @@ module.exports = {
     Showable: require('./gaffaExtensions/views/showable')
 
 };
-},{"./gaffaExtensions/views/showable":77,"gaffa-anchor":19,"gaffa-button":20,"gaffa-container":23,"gaffa-form":24,"gaffa-heading":25,"gaffa-html":26,"gaffa-image":27,"gaffa-label":28,"gaffa-list":29,"gaffa-text":36,"gaffa-textbox":38}]},{},[79])
+},{"./gaffaExtensions/views/showable":84,"gaffa-anchor":20,"gaffa-button":21,"gaffa-container":25,"gaffa-form":26,"gaffa-heading":27,"gaffa-html":28,"gaffa-image":29,"gaffa-label":30,"gaffa-list":31,"gaffa-text":38,"gaffa-textbox":40}]},{},[86])
