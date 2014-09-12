@@ -4,10 +4,10 @@ module.exports = function(app){
         behaviours = app.behaviours;
 
     function createAppBody(){
-        var appBody = new views.Container();
+        var appBody = new views.Frame();
 
         appBody.classes.value = 'appBody';
-        appBody.name = 'appBody'
+        appBody.url.binding = '(router.get "page" [/route])';
 
         return appBody;
     }

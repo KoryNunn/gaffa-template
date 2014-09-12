@@ -35,6 +35,11 @@ Showable.prototype.render = function(){
     flap.delegateTarget = this.delegateTarget;
     flap.on('settle', function(){
         view.show.set(flap.state === 'open');
+        if(flap.state === 'open'){
+            mask.style.display = null;
+        }else{
+            mask.style.display = 'none';
+        }
     });
     flap.on('move', function(){
         mask.style.opacity = this.percentOpen() / 100;

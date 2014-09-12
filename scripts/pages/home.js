@@ -37,8 +37,7 @@ module.exports = function(){
         return homePage;
     }
 
-    return {
-        views: [createHomePage()]
-    };
+
+    return createHomePage();
 
 };

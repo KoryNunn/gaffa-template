@@ -6,16 +6,16 @@
   "dependencies": {
     "beeline": "0.1.x",
     "crel": "^1.1.0",
-    "doc-js": "^0.4.1",
+    "doc-js": "^1.0.0",
     "flaps": "^3.0.2",
     "gaffa": "^1.7.1",
     "gaffa-ajax": "^1.1.0",
     "gaffa-anchor": "^1.0.0",
     "gaffa-button": "^1.0.0",
     "gaffa-concat": "^1.0.0",
-    "gaffa-conditional": "^1.0.0",
     "gaffa-container": "^1.0.0",
     "gaffa-form": "^1.0.0",
+    "gaffa-frame": "^1.0.3",
     "gaffa-heading": "^1.0.0",
     "gaffa-html": "^1.0.0",
     "gaffa-image": "^1.0.0",
@@ -27,23 +27,30 @@
     "gaffa-push": "^1.0.0",
     "gaffa-remove": "^1.0.0",
     "gaffa-set": "^1.0.0",
+    "gaffa-switch": "^1.1.1",
     "gaffa-text": "^1.0.0",
     "gaffa-textbox": "^1.0.0",
     "gaffa-toggle": "^1.0.0",
     "gel-url": "0.0.2",
+    "ieify": "^1.1.0",
     "moment": "~2.5.0",
-    "route-tree": "^1.0.0",
+    "route-tree": "^2.2.1",
     "statham": "^1.0.0",
     "venfix": "0.0.2"
   },
   "devDependencies": {
+    "browserify": "~4.1.6",
+    "gaffa-viewbuilder": "~2.1.0",
+    "gedi": "^1.5.1",
+    "gel-transform": "^1.0.1",
     "gulp": "3.x.x",
     "gulp-browserify": "0.2.x",
     "gulp-concat": "2.1.x",
-    "vinyl-source-stream": "~0.1.1",
-    "browserify": "~4.1.6",
-    "gaffa-viewbuilder": "~2.1.0",
-    "node-static": "~0.7.3"
+    "gulp-stylus": "^1.3.0",
+    "ieify-transform": "^1.0.1",
+    "kgo": "^1.1.3",
+    "node-static": "~0.7.3",
+    "vinyl-source-stream": "~0.1.1"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -54,5 +61,11 @@
   },
   "author": "",
   "license": "BSD",
-  "bugs": {}
+  "bugs": {},
+  "browserify": {
+    "transform": [
+      "gel-transform",
+      "ieify-transform"
+    ]
+  }
 }

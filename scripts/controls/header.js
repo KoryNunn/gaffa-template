@@ -7,8 +7,8 @@ module.exports = function(app){
         var header = new views.Container(),
             actionRegion = new views.Container(),
             contextRegion = new views.Container(),
-            isHomeAction = new actions.Conditional(),
-            back = new actions.Navigate(),
+            isHomeAction = new actions.Switch(),
+            back = new actions.Back(),
             toggleMenu = new actions.Toggle(),
             logo = new views.Image(),
             title = new views.Heading();
@@ -20,11 +20,9 @@ module.exports = function(app){
 
         contextRegion.classes.binding = '(join " " "contextRegion" (? (== [currentPage] "home") "menu" "back"))';
 
-        isHomeAction.condition.binding = '(== [currentPage] "home")';
-        isHomeAction.actions['true'] = [toggleMenu];
-        isHomeAction.actions['false'] = [back];
-
-        back.url.binding = '(router.upOne)';
+        isHomeAction.switch.binding = '[currentPage]';
+        isHomeAction.actions.home = [toggleMenu];
+        isHomeAction.actions.default = [back];
 
         toggleMenu.target.binding = '[showMainMenu]';
 
