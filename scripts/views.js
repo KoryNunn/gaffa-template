@@ -6,13 +6,14 @@ module.exports = {
     Label : require('gaffa-label'),
     Text : require('gaffa-text'),
     Button : require('gaffa-button'),
-    Anchor : require('gaffa-anchor'),
     Image : require('gaffa-image'),
     Html : require('gaffa-html'),
     Textbox : require('gaffa-textbox'),
+    Frame : require('gaffa-frame'),
 
     // --- custom
 
-    Showable: require('./gaffaExtensions/views/showable')
+    Showable: require('./gaffaExtensions/views/showable'),
+    Anchor: require('./gaffaExtensions/views/anchor')
 
 };

@@ -57,8 +57,6 @@ module.exports = function(){
         return somePage;
     }
 
-    return {
-        views: [createSomePage()]
-    };
+    return createSomePage();
 
 };
