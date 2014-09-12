@@ -5,7 +5,7 @@ module.exports = {
     Concat : require('gaffa-concat'),
     Remove : require('gaffa-remove'),
     Toggle : require('gaffa-toggle'),
-    Conditional : require('gaffa-conditional'),
+    Switch : require('gaffa-switch'),
     Ajax : require('gaffa-ajax'),
 
     // custom
