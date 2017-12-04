@@ -33,7 +33,7 @@
     "gaffa-toggle": "^1.0.0",
     "gel-url": "0.0.2",
     "ieify": "^1.1.0",
-    "moment": "~2.5.0",
+    "moment": "~2.19.3",
     "route-tree": "^2.2.1",
     "statham": "^1.0.0",
     "venfix": "0.0.2"
